@@ -1,6 +1,6 @@
-// Data layer: one Supabase table (`records`) holds every map item for every user.
+// Data layer: one Supabase table (`records`) holds every board item for every user.
 // Row-level security on the server limits each signed-in person to their own rows,
-// so this module only ever sees the current user's map.
+// so this module only ever sees the current user's board.
 import { createClient } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -44,7 +44,7 @@ export function createStore(cols, onChange) {
         else put(p.new.col, p.new.id, p.new.data);
         onChange();
       })
-      .subscribe(status => { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[rat-race] realtime', status); });
+      .subscribe(status => { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[job-hunt] realtime', status); });
     await loadAll();
   }
   function stop() {

@@ -2,7 +2,8 @@ import * as d3 from 'd3';
 import './style.css';
 import { configured, demo, supabase, createStore } from './store.js';
 import { sampleRows } from './sample.js';
-import { seedOf, sketchShape, sketchCircle, sketchCross, sketchSlash, sketchStar, sketchIconMarkup } from './sketch.js';
+import { seedOf } from './sketch.js';
+import { CARD, drawCard, drawPin, iconMarkup, rotationOf, pinLocal, collideRadius } from './board.js';
 
 const $ = s => document.querySelector(s);
 function h(tag, attrs, ...kids) {
@@ -183,14 +184,6 @@ function referralOf(a) {
   const p = (a.personIds || []).map(id => get('people', id)).find(p => p && p.kind === 'Referral');
   return p || (a.source === 'Referral' ? { name: '' } : null);
 }
-const STAR = 'M0,-3.6L1.06,-1.1L3.42,-1.1L1.6,0.45L2.2,2.9L0,1.5L-2.2,2.9L-1.6,0.45L-3.42,-1.1L-1.06,-1.1Z';
-function markPath(status, r) {
-  const a = r * .55;
-  if (status === 'rejected') return `M${-a},${-a}L${a},${a}M${a},${-a}L${-a},${a}`;
-  if (status === 'withdrawn') return `M${a},${-a}L${-a},${a}`;
-  return '';
-}
-
 function refsOf(col, r) {
   const out = [];
   for (const f of TYPES[col].fields) {
@@ -208,29 +201,11 @@ function allLinks() {
   return L;
 }
 
-/* ---------- Shapes ---------- */
-function shapePath(col, r) {
-  switch (col) {
-    case 'companies': { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 2; p += (i ? 'L' : 'M') + (r * Math.cos(a)).toFixed(2) + ',' + (r * Math.sin(a)).toFixed(2); } return p + 'Z'; }
-    case 'roles': { const s = r * .82; return `M${-s},${-s}H${s}V${s}H${-s}Z`; }
-    case 'documents': { const w = r * .74, t = r; return `M${-w},${-t}H${w * .35}L${w},${-t + w * .65}V${t}H${-w}Z`; }
-    case 'people': return `M0,${-r}L${r * .95},${r * .72}L${-r * .95},${r * .72}Z`;
-    case 'interviews': return `M0,${-r * 1.1}L${r * 1.1},0L0,${r * 1.1}L${-r * 1.1},0Z`;
-    default: return `M${r},0A${r},${r} 0 1 1 ${-r},0A${r},${r} 0 1 1 ${r},0Z`;
-  }
-}
+/* ---------- Icons ---------- */
 function icon(col, status) {
-  const r = col === 'companies' ? 6.5 : col === 'events' ? 4 : 5.5;
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   el.setAttribute('class', 'ico'); el.setAttribute('viewBox', '-9 -9 18 18'); el.setAttribute('aria-hidden', 'true');
-  const key = 'ic-' + col + '-' + (status || '');
-  const art = sketchIconMarkup(key, () => {
-    const els = sketchShape(col, r, shapePath(col, r), seedOf(key), status);
-    if (status === 'rejected') els.push(...wrapMark(sketchCross(r * .6, 3)));
-    if (status === 'withdrawn') els.push(...wrapMark(sketchSlash(r * .6, 3)));
-    return els;
-  });
-  el.innerHTML = '<g class="t-' + col + (status ? ' s-' + status : '') + '">' + art + '</g>';
+  el.innerHTML = iconMarkup(col, status);
   return el;
 }
 const statusColor = s => `var(--s-${s})`;
@@ -239,10 +214,10 @@ const statusColor = s => `var(--s-${s})`;
 function handleErr(e) {
   const msg = (e && (e.message || e.error_description)) || '';
   if (/JWT|session|not authenticated/i.test(msg)) toast('Your session expired. Sign in again to keep saving.');
-  else if (/Map is full/.test(msg)) toast('Your map is full. Delete old events or sample data to make room.');
+  else if (/Map is full/.test(msg)) toast('Your board is full. Delete old events or sample data to make room.');
   else if (/fetch|network/i.test(msg)) toast('You seem to be offline. That change did not save.');
   else toast('That change did not save. Try again in a moment.');
-  console.warn('[rat-race]', e);
+  console.warn('[job-hunt]', e);
 }
 async function write(col, id, body) {
   try { await store.set(col, id, body); return true; } catch (e) { handleErr(e); return false; }
@@ -290,20 +265,20 @@ async function deleteRecord(col, id) {
 async function clearSample() {
   const btn = $('#clearSample'); btn.disabled = true; btn.textContent = 'Clearing…';
   const ids = COLS.flatMap(c => all(c).filter(r => r.sample).map(r => r.id));
-  try { await store.removeMany(ids); toast('Sample data cleared. The map is yours now.'); } catch (e) { handleErr(e); }
-  btn.disabled = false; btn.textContent = 'Clear sample data';
+  try { await store.removeMany(ids); toast('Sample case closed. The board is yours now.'); } catch (e) { handleErr(e); }
+  btn.disabled = false; btn.textContent = 'Clear sample case';
   if (panel.mode) closePanel();
 }
 async function loadSample() {
-  try { await store.insertMany(sampleRows(store.newId)); toast('Sample map loaded. Clear it any time from the top bar.'); didFit = false; }
+  try { await store.insertMany(sampleRows(store.newId)); toast('Sample case pinned up. Clear it any time from the top bar.'); didFit = false; }
   catch (e) { handleErr(e); }
 }
 
 /* ---------- Export / import (your data, as a JSON file) ---------- */
 function exportJSON() {
   const rows = COLS.flatMap(c => all(c).map(r => ({ id: r.id, col: c, data: stripId(r) })));
-  const blob = new Blob([JSON.stringify({ app: 'the-rat-race', version: 1, exportedAt: new Date().toISOString(), records: rows }, null, 2)], { type: 'application/json' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: `rat-race-${localDate()}.json` });
+  const blob = new Blob([JSON.stringify({ app: 'job-hunt', version: 1, exportedAt: new Date().toISOString(), records: rows }, null, 2)], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: `job-hunt-${localDate()}.json` });
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   closeAccount();
 }
@@ -388,7 +363,7 @@ function render() {
 }
 function renderBanner() {
   const b = $('#banner');
-  if (state.dbState === 'none') { b.hidden = false; b.textContent = 'Your map could not load. Check your connection, then reload the page.'; }
+  if (state.dbState === 'none') { b.hidden = false; b.textContent = 'Your board could not load. Check your connection, then reload the page.'; }
   else b.hidden = true;
 }
 
@@ -403,7 +378,7 @@ function renderStats() {
   const offers = apps.filter(a => a.status === 'offer').length;
   const el = $('#stats'); el.replaceChildren();
   const stat = (n, l) => h('div', { class: 'stat' }, h('b', null, n), h('span', null, l));
-  el.append(stat(sent.length, 'Sent'), stat(active.length, 'Active'), stat(pct(heard.length, sent.length), 'Heard back'),
+  el.append(stat(sent.length, 'Sent'), stat(active.length, 'Active leads'), stat(pct(heard.length, sent.length), 'Heard back'),
     stat(upcoming.length, 'Upcoming interviews'), stat(offers, 'Offers'));
   const counts = STATUSES.map(s => ({ ...s, n: apps.filter(a => (a.status || 'applied') === s.k).length })).filter(s => s.n);
   const bar = h('div', { class: 'funnel-bar', role: 'img', 'aria-label': counts.map(s => `${s.l} ${s.n}`).join(', ') || 'No applications yet' },
@@ -418,74 +393,54 @@ function renderStats() {
   if (res.length) el.append(h('div', { class: 'best' }, 'Best resume: ', h('strong', null, res[0].d.name), ` · ${res[0].hit} of ${res[0].used} reached interview`));
 }
 
-/* ---------- Graph ---------- */
+/* ---------- Board ---------- */
+// The map is a cork board: each record is a pinned piece of paper and every link is
+// red string running between thumbtacks. The cork texture pans and zooms with the board.
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const svg = d3.select('#graph');
-svg.append('defs').html(`<filter id="pencil" x="-5%" y="-5%" width="110%" height="110%">
-  <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7"/>
-  <feDisplacementMap in="SourceGraphic" scale="1.8"/></filter>`);
-const gRoot = svg.append('g').attr('class', 'root'), gLinks = gRoot.append('g').attr('class', 'links').attr('filter', 'url(#pencil)'), gNodes = gRoot.append('g');
-// Companies get extra room for their handwritten name underneath.
-const collideR = d => d.r + 10 + (d.col === 'companies' ? Math.min(d.reach || 0, 4) * 5 + 26 : 0);
+svg.append('defs').html(`
+  <filter id="drop" x="-20%" y="-20%" width="150%" height="150%"><feDropShadow dx="1.5" dy="3" stdDeviation="2.2" flood-color="#1a0f05" flood-opacity=".42"/></filter>
+  <filter id="dropHi" x="-30%" y="-30%" width="170%" height="170%"><feDropShadow dx="4" dy="9" stdDeviation="5" flood-color="#1a0f05" flood-opacity=".45"/></filter>
+  <radialGradient id="shade" cx=".5" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+  <pattern id="grain" width="90" height="90" patternUnits="userSpaceOnUse"><image width="90" height="90" href="data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='90' height='90' filter='url(#g)'/></svg>`)}"/></pattern>
+  <filter id="strShadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="1.2" dy="3" stdDeviation="1.2" flood-color="#1a0f05" flood-opacity=".38"/></filter>`);
+const gRoot = svg.append('g').attr('class', 'root'), gNodes = gRoot.append('g'),
+  gLinks = gRoot.append('g').attr('class', 'links').attr('filter', 'url(#strShadow)'), gPins = gRoot.append('g').attr('class', 'pins');
 let simNodes = [], simLinks = [], sig = '', sizeSig = '', didFit = false, dragging = false,
-  linkSel = gLinks.selectAll('path'), nodeSel = gNodes.selectAll('g.node');
+  linkSel = gLinks.selectAll('path'), nodeSel = gNodes.selectAll('g.node'), pinSel = gPins.selectAll('g.pin');
 
-// Gentle zoom; the graph paper moves and scales with the drawing.
-const zoom = d3.zoom().scaleExtent([0.2, 3.5])
+const zoom = d3.zoom().scaleExtent([0.15, 3])
   .wheelDelta(e => -e.deltaY * (e.deltaMode === 1 ? 0.03 : e.deltaMode ? 1 : 0.0011))
   .on('zoom', e => {
     const t = e.transform;
     gRoot.attr('transform', t);
-    // Labels appear in layers as you zoom in: companies always, roles next, everything else up close.
-    svg.classed('z1', t.k > 1.15).classed('zoomed', t.k > 1.8);
-    let s = 24 * t.k; while (s < 12) s *= 4;
+    const s = 240 * t.k;
     svg.style('background-size', `${s}px ${s}px`).style('background-position', `${t.x}px ${t.y}px`);
   });
 svg.call(zoom).on('dblclick.zoom', null);
 function centerView() { const n = svg.node(); svg.call(zoom.transform, d3.zoomIdentity.translate(n.clientWidth / 2, n.clientHeight / 2)); }
 
-const LINKDIST = { 'roles-companyId': 70, 'people-companyId': 78, 'applications-roleId': 46, 'interviews-applicationId': 40, 'events-refs': 34 };
+const LINKDIST = { 'roles-companyId': 160, 'people-companyId': 165, 'applications-roleId': 110, 'interviews-applicationId': 105, 'events-refs': 90 };
 const sim = d3.forceSimulation()
-  .force('link', d3.forceLink().id(d => d.key).distance(l => LINKDIST[l.kind] || 90).strength(l => l.kind.includes('resume') || l.kind.includes('letter') ? .08 : .55))
-  .force('charge', d3.forceManyBody().strength(d => d.col === 'companies' ? -1100 : d.col === 'events' ? -60 : -240).distanceMax(600))
-  .force('collide', d3.forceCollide().radius(collideR).strength(.8))
-  .force('x', d3.forceX().strength(.04)).force('y', d3.forceY().strength(.055))
-  .force('labels', labelForce)
+  .force('link', d3.forceLink().id(d => d.key).distance(l => LINKDIST[l.kind] || 150).strength(l => l.kind.includes('resume') || l.kind.includes('letter') ? .06 : .5))
+  .force('charge', d3.forceManyBody().strength(d => d.col === 'companies' ? -2400 : d.col === 'events' ? -120 : -520).distanceMax(900))
+  .force('collide', d3.forceCollide().radius(collideRadius).strength(1).iterations(2))
+  .force('x', d3.forceX().strength(.018)).force('y', d3.forceY().strength(.075))
   .velocityDecay(.55).alphaDecay(.045)
   .on('tick', ticked);
-// Company names are wide, so circles alone don't keep them apart. Treat each name as a box
-// under its hexagon: push other companies (and nodes sitting on the name) out of it.
-function labelForce(alpha) {
-  const cs = simNodes.filter(n => n.col === 'companies');
-  const box = c => ({ x: c.x, y: c.y + c.r + 22 + Math.min(c.reach || 0, 4) * 5, hw: c.lw / 2 + 10, hh: 16 });
-  for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
-    const a = cs[i], b = cs[j], w = (a.lw + b.lw) / 2 + 30, h = 90, dx = b.x - a.x, dy = b.y - a.y;
-    const ox = w - Math.abs(dx), oy = h - Math.abs(dy);
-    if (ox > 0 && oy > 0) {
-      if (ox * .55 < oy) { const m = ox * alpha * .4 * (Math.sign(dx) || 1); a.vx -= m; b.vx += m; }
-      else { const m = oy * alpha * .4 * (Math.sign(dy) || 1); a.vy -= m; b.vy += m; }
-    }
-  }
-  for (const c of cs) {
-    const bx = box(c);
-    for (const n of simNodes) {
-      if (n === c) continue;
-      const dx = n.x - bx.x, dy = n.y - bx.y, ox = bx.hw + n.r - Math.abs(dx), oy = bx.hh + n.r - Math.abs(dy);
-      if (ox > 0 && oy > 0) {
-        if (ox < oy * 1.5 && Math.abs(dx) > bx.hw * .6) n.vx += (Math.sign(dx) || 1) * ox * alpha * 1.1;
-        else n.vy += (Math.sign(dy) || 1) * oy * alpha * 1.1;
-      }
-    }
-  }
-}
+
+// String runs tack to tack and sags under its own weight; string to a dead lead hangs slack.
+const pinX = n => n.x + n.pdx, pinY = n => n.y + n.pdy;
 function linkPath(l) {
-  const x1 = l.source.x, y1 = l.source.y, x2 = l.target.x, y2 = l.target.y;
-  const cx = (x1 + x2) / 2 - (y2 - y1) * l.bend, cy = (y1 + y2) / 2 + (x2 - x1) * l.bend;
+  const x1 = pinX(l.source), y1 = pinY(l.source), x2 = pinX(l.target), y2 = pinY(l.target);
+  const dx = x2 - x1, dy = y2 - y1, sag = Math.min(70, Math.hypot(dx, dy) * .13) * (l.slack ? 2 : 1);
+  const cx = (x1 + x2) / 2 - dy * l.bend, cy = (y1 + y2) / 2 + dx * l.bend + sag;
   return `M${x1.toFixed(1)},${y1.toFixed(1)}Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
 }
 function ticked() {
   linkSel.attr('d', linkPath);
   nodeSel.attr('transform', n => `translate(${n.x.toFixed(1)},${n.y.toFixed(1)})`);
+  pinSel.attr('transform', n => `translate(${pinX(n).toFixed(1)},${pinY(n).toFixed(1)})`);
 }
 
 function zoomToFit(dur = 750) {
@@ -493,47 +448,40 @@ function zoomToFit(dur = 750) {
   const el = svg.node(), W = el.clientWidth, H = el.clientHeight;
   if (!W || !H) return;
   const xs = simNodes.map(n => n.x), ys = simNodes.map(n => n.y);
-  const x0 = Math.min(...xs) - 50, x1 = Math.max(...xs) + 50, y0 = Math.min(...ys) - 70, y1 = Math.max(...ys) + 60;
-  const k = Math.min(1.4, .9 * Math.min(W / (x1 - x0), H / (y1 - y0)));
-  const t = d3.zoomIdentity.translate(W / 2 - k * (x0 + x1) / 2, H / 2 - k * (y0 + y1) / 2 + 24).scale(k);
+  const x0 = Math.min(...xs) - 80, x1 = Math.max(...xs) + 80, y0 = Math.min(...ys) - 90, y1 = Math.max(...ys) + 100;
+  const k = Math.min(1.25, .92 * Math.min(W / (x1 - x0), H / (y1 - y0)));
+  const t = d3.zoomIdentity.translate(W / 2 - k * (x0 + x1) / 2, H / 2 - k * (y0 + y1) / 2 + 20).scale(k);
   if (RM || !dur) svg.call(zoom.transform, t);
   else svg.transition().duration(dur).ease(d3.easeCubicInOut).call(zoom.transform, t);
 }
-// Dragged nodes stay where you put them (double-click one, or use Tidy, to let it float again).
+// Dragged cards stay where you pin them (double-click one, or use Tidy, to let it float again).
 const drag = d3.drag()
   .on('start', (e, d) => { dragging = true; setHover(null); if (!e.active) sim.alphaTarget(.04).restart(); d.fx = d.x; d.fy = d.y; })
-  .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-  .on('end', e => { dragging = false; if (!e.active) sim.alphaTarget(0); });
+  .on('drag', function (e, d) { d.fx = e.x; d.fy = e.y; if (!this.classList.contains('lifted')) d3.select(this).classed('lifted', true).raise(); })
+  .on('end', e => { dragging = false; nodeSel.classed('lifted', false); if (!e.active) sim.alphaTarget(0); });
 function tidy() {
   for (const n of simNodes) { n.fx = null; n.fy = null; }
   sim.alpha(.35).restart();
   setTimeout(() => zoomToFit(), RM ? 0 : 900);
 }
 
-// Each node's drawing depends only on these; redraw just when they change.
-const visualSig = n => [n.col, n.r, n.rec.status, n.reach, !!n.referral].join('|');
-function drawNode(g, n) {
-  const seed = seedOf(n.key), sel = d3.select(g);
-  const art = sel.select('g.art').node();
-  const halo = sel.select('g.halo').node(), body = sel.select('g.body').node(), mark = sel.select('g.mark').node(),
-    star = sel.select('g.star').node(), ring = sel.select('g.selring').node();
-  sel.select('path.paper').attr('d', n.col === 'applications' || n.col === 'events' ? shapePath('x', n.r) : shapePath(n.col, n.r));
-  body.replaceChildren(...sketchShape(n.col, n.r, shapePath(n.col, n.r), seed, n.rec.status));
-  const rings = [];
-  if (n.col === 'companies') {
-    const k = Math.min(n.reach || 0, 4);
-    for (let i = 0; i < k; i++) { const gr = svgEl('g', `ring-reach i${i}${i === k - 1 ? ' last' : ''}`); gr.append(...sketchCircle(n.r + 6 + i * 5, seed + i + 1)); rings.push(gr); }
+// What's written on each card. A card is redrawn only when this changes.
+function faceOf(n) {
+  const r = n.rec;
+  switch (n.col) {
+    case 'companies': return { name: r.name, interest: r.interest, reach: n.reach };
+    case 'people': return { name: r.name, kind: r.kind };
+    case 'roles': return { title: r.title, workplace: r.workplace, salary: r.salary };
+    case 'applications': { const s = r.status || 'applied'; return { title: titleOf('applications', r), status: s, statusLabel: STATUS_L[s], applied: fmtDate(r.applied, false), referral: !!n.referral }; }
+    case 'documents': return { name: r.name, kind: r.kind };
+    case 'interviews': { const d = parseD(r.date), t = r.date?.length > 10 && d && !isNaN(d) ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''; return { round: r.round, date: fmtDate(r.date, false), time: t, outcome: r.outcome }; }
+    case 'events': return { title: r.title, date: fmtDate(r.date, false) };
   }
-  if (n.referral) { const gr = svgEl('g', 'ring-ref'); gr.append(...sketchCircle(n.r + 4, seed + 11, { strokeWidth: 1.8 })); rings.push(gr); }
-  if (n.col === 'applications' && n.rec.status === 'offer') { const gr = svgEl('g', 'ring-offer'); gr.append(...sketchCircle(n.r + (n.referral ? 9 : 5), seed + 12, { strokeWidth: 3 })); rings.push(gr); }
-  halo.replaceChildren(...rings);
-  mark.replaceChildren(...(n.col !== 'applications' ? [] : n.rec.status === 'rejected' ? sketchCross(n.r * .62, seed + 3) : n.rec.status === 'withdrawn' ? sketchSlash(n.r * .62, seed + 3) : []));
-  star.replaceChildren(...(n.referral ? sketchStar(n.r * .95, -n.r * .95, 5.5, seed + 5) : []));
-  ring.replaceChildren(...sketchCircle(n.r + (n.col === 'companies' ? 8 + Math.min(n.reach || 0, 4) * 5 : 7), seed + 21, { strokeWidth: 1.6, roughness: 2 }));
-  n._vsig = visualSig(n);
-  void art;
 }
-function svgEl(tag, cls) { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); if (cls) el.setAttribute('class', cls); return el; }
+function drawNode(g, n) {
+  drawCard(g.querySelector('g.card'), n.col, n.face, seedOf(n.key));
+  n._vsig = n.col + JSON.stringify(n.face);
+}
 
 function updateGraph() {
   const nodes = [];
@@ -541,25 +489,28 @@ function updateGraph() {
     if (!state.types.has(c)) continue;
     for (const r of state.data[c].values()) {
       if (c === 'applications' && !state.statuses.has(r.status || 'applied')) continue;
-      nodes.push({ key: c + '/' + r.id, col: c, rec: r, r: TYPES[c].r });
+      nodes.push({ key: c + '/' + r.id, col: c, rec: r });
     }
   }
   const inSet = new Set(nodes.map(n => n.key));
   const links = allLinks().filter(l => inSet.has(l.source) && inSet.has(l.target))
-    .map(l => { const id = l.source + '>' + l.target + ':' + l.kind; return { ...l, id, bend: ((seedOf(id) % 100) / 100 - .5) * .28 }; });
+    .map(l => { const id = l.source + '>' + l.target + ':' + l.kind; return { ...l, id, bend: ((seedOf(id) % 100) / 100 - .5) * .12 }; });
   const newSig = nodes.map(n => n.key).join('|') + '#' + links.map(l => l.id).join('|');
   const old = new Map(simNodes.map(n => [n.key, n]));
-  const merged = nodes.map(n => { const o = old.get(n.key); if (o) { o.rec = n.rec; return o; } return n; });
+  const merged = nodes.map(n => {
+    const o = old.get(n.key); if (o) { o.rec = n.rec; return o; }
+    const a = rotationOf(n.col, seedOf(n.key)) * Math.PI / 180, p = pinLocal(n.col);
+    n.pdx = p.x * Math.cos(a) - p.y * Math.sin(a); n.pdy = p.x * Math.sin(a) + p.y * Math.cos(a);
+    return n;
+  });
   for (const n of merged) {
-    if (n.col === 'companies') {
-      n.reach = companyContacts(n.rec.id).size; n.r = TYPES.companies.r + Math.min(n.reach, 6) * 1.6;
-      n.lw = Math.min(titleOf('companies', n.rec).length, 27) * 9.2; // approx. width of the Caveat label
-    }
+    if (n.col === 'companies') n.reach = companyContacts(n.rec.id).size;
     if (n.col === 'applications') n.referral = referralOf(n.rec);
+    n.face = faceOf(n);
   }
-  const newSizeSig = merged.filter(n => n.col === 'companies').map(n => n.reach + ':' + n.lw).join(',');
+  const newSizeSig = merged.filter(n => n.col === 'companies').map(n => Math.min(n.reach, 4)).join(',');
   const sizeChanged = newSizeSig !== sizeSig;
-  if (sizeChanged) { sizeSig = newSizeSig; sim.force('collide').radius(collideR); }
+  if (sizeChanged) { sizeSig = newSizeSig; sim.force('collide').radius(collideRadius); }
   if (newSig !== sig) {
     sig = newSig;
     const byKey = new Map(merged.map(n => [n.key, n]));
@@ -567,7 +518,7 @@ function updateGraph() {
       const l = links.find(l => (l.source === n.key && byKey.get(l.target)?.x != null) || (l.target === n.key && byKey.get(l.source)?.x != null));
       const nb = l && byKey.get(l.source === n.key ? l.target : l.source);
       const a = Math.random() * Math.PI * 2;
-      if (nb) { n.x = nb.x + Math.cos(a) * 30; n.y = nb.y + Math.sin(a) * 30; }
+      if (nb) { n.x = nb.x + Math.cos(a) * 60; n.y = nb.y + Math.sin(a) * 60; }
     }
     simNodes = merged; simLinks = links;
     sim.nodes(simNodes); sim.force('link').links(simLinks);
@@ -584,37 +535,33 @@ function updateGraph() {
 
   const isRefLink = l => l.kind === 'applications-personIds' && getKey(l.target.key || l.target)?.kind === 'Referral';
   const isDead = l => [l.source, l.target].some(e => { const k = e.key || e; return k.startsWith('applications/') && CLOSED.includes(getKey(k)?.status); });
-  const isFaint = l => /resumeId|letterId|events-refs/.test(l.kind);
+  const isThread = l => /resumeId|letterId|events-refs/.test(l.kind);
+  for (const l of simLinks) l.slack = isDead(l);
   linkSel = gLinks.selectAll('path').data(simLinks, l => l.id).join('path')
-    .attr('class', l => 'link k-' + l.kind + (isRefLink(l) ? ' referral' : '') + (isDead(l) ? ' dead' : '') + (isFaint(l) ? ' faint' : ''));
+    .attr('class', l => 'link k-' + l.kind + (isRefLink(l) ? ' referral' : '') + (l.slack ? ' dead' : '') + (isThread(l) ? ' thread' : ''));
   nodeSel = gNodes.selectAll('g.node').data(simNodes, n => n.key).join(enter => {
     const g = enter.append('g').call(drag)
       .on('click', (e, n) => { e.stopPropagation(); openRecord(n.key); })
       .on('dblclick', (e, n) => { e.stopPropagation(); n.fx = null; n.fy = null; sim.alpha(.08).restart(); })
       .on('mouseenter', (e, n) => setHover(n))
       .on('mouseleave', () => setHover(null));
-    const art = g.append('g').attr('class', 'art');
-    art.append('g').attr('class', 'halo');
-    art.append('g').attr('class', 'selring');
-    art.append('path').attr('class', 'paper');
-    art.append('g').attr('class', 'body');
-    art.append('g').attr('class', 'mark');
-    art.append('g').attr('class', 'star');
-    g.append('text').attr('class', 'label');
+    g.append('g').attr('class', 'art').append('g').attr('class', 'card');
     g.append('text').attr('class', 'reach');
     g.append('title');
     return g;
   });
+  pinSel = gPins.selectAll('g.pin').data(simNodes, n => n.key).join(enter => enter.append('g').each(function () { drawPin(this); }));
   const q = !!state.search.trim();
   svg.classed('searching', q);
+  const cls = n => `t-${n.col}${n.col === 'applications' ? ' s-' + (n.rec.status || 'applied') : ''}${state.selected === n.key ? ' selected' : ''}${q && matches(n.col, n.rec) ? ' match' : ''}`;
+  pinSel.attr('class', n => 'pin ' + cls(n));
   nodeSel
-    .attr('class', n => `node t-${n.col}${n.col === 'applications' ? ' s-' + (n.rec.status || 'applied') : ''}${n.reach >= 3 ? ' hot' : ''}${state.selected === n.key ? ' selected' : ''}${q && matches(n.col, n.rec) ? ' match' : ''}`)
+    .attr('class', n => `node ${cls(n)}${n.reach >= 3 ? ' hot' : ''}`)
     .attr('tabindex', 0).attr('role', 'button').attr('aria-label', n => `${TYPES[n.col].label}: ${optLabel(n.col, n.rec)}`)
     .on('keydown', (e, n) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRecord(n.key); } })
-    .each(function (n) { if (n._vsig !== visualSig(n)) drawNode(this, n); });
-  const labelY = n => n.r + 15 + (n.col === 'companies' ? Math.min(n.reach || 0, 4) * 5 + 2 : n.referral ? 4 : 0);
-  nodeSel.select('text.label').attr('y', labelY).text(n => { const t = titleOf(n.col, n.rec); return t.length > 28 ? t.slice(0, 26) + '…' : t; });
-  nodeSel.select('text.reach').attr('y', n => labelY(n) + 14).text(n => n.col === 'companies' && n.reach ? `${n.reach} contact${n.reach === 1 ? '' : 's'}` : '');
+    .each(function (n) { if (n._vsig !== n.col + JSON.stringify(n.face)) drawNode(this, n); });
+  nodeSel.select('text.reach').attr('y', n => CARD.companies.h / 2 + 22 + Math.min(n.reach || 0, 4) * 4)
+    .text(n => n.col === 'companies' && n.reach ? `${n.reach} contact${n.reach === 1 ? '' : 's'}` : '');
   nodeSel.select('title').text(n => {
     let s = `${TYPES[n.col].label}: ${optLabel(n.col, n.rec)}${subOf(n.col, n.rec) ? '\n' + subOf(n.col, n.rec) : ''}`;
     if (n.col === 'companies') s += `\n${n.reach || 0} contact${n.reach === 1 ? '' : 's'} reached`;
@@ -624,7 +571,7 @@ function updateGraph() {
   ticked();
 }
 // Hover waits a beat before dimming the rest, and lingers briefly on the way out,
-// so sweeping the mouse across the map doesn't flicker.
+// so sweeping the mouse across the board doesn't flicker.
 let hoverT = 0, hovered = null;
 function setHover(n) {
   clearTimeout(hoverT);
@@ -633,26 +580,25 @@ function setHover(n) {
 }
 function highlight(n) {
   svg.classed('hovering', !!n);
-  if (!n) { nodeSel.classed('hl', false); linkSel.classed('hl', false); return; }
+  if (!n) { nodeSel.classed('hl', false); pinSel.classed('hl', false); linkSel.classed('hl', false); return; }
   const nb = new Set([n.key]);
   linkSel.classed('hl', l => { const on = l.source.key === n.key || l.target.key === n.key; if (on) { nb.add(l.source.key); nb.add(l.target.key); } return on; });
   nodeSel.classed('hl', d => nb.has(d.key));
+  pinSel.classed('hl', d => nb.has(d.key));
 }
 svg.on('click', () => { if (panel.mode) closePanel(); });
 $('#fitBtn').onclick = () => zoomToFit();
 $('#tidyBtn').onclick = tidy;
 
 function renderLegend() {
-  const ico = (key, build) => `<svg viewBox="-12 -12 24 24" aria-hidden="true">${sketchIconMarkup(key, build)}</svg>`;
-  const wrap = (cls, els) => () => { const g = svgEl('g', cls); g.append(...els()); return [g]; };
+  const ico = inner => `<svg viewBox="-12 -12 24 24" aria-hidden="true">${inner}</svg>`;
   $('#legend').innerHTML = [
-    [ico('lg-reach', () => [...wrap('ring-reach i1', () => sketchCircle(10, 3))(), ...wrap('ring-reach i0', () => sketchCircle(7.5, 4))(), ...wrap('t-companies', () => sketchShape('companies', 5, shapePath('companies', 5), 5))()]), 'Rings = contacts reached'],
-    [ico('lg-ref', () => [...wrap('ring-ref', () => sketchCircle(8, 6))(), ...wrap('s-applied', () => sketchShape('applications', 5, '', 7, 'applied'))(), ...wrap('star', () => sketchStar(6, -6, 4, 8))()]), 'Referral'],
-    [ico('lg-rej', () => wrap('s-rejected', () => [...sketchShape('applications', 6, '', 9, 'rejected'), ...wrapMark(sketchCross(3.6, 10))])()), 'Rejected'],
-    [ico('lg-offer', () => [...wrap('ring-offer', () => sketchCircle(8.5, 12, { strokeWidth: 2.5 }))(), ...wrap('s-offer', () => sketchShape('applications', 5, '', 13, 'offer'))()]), 'Offer'],
+    [ico('<rect x="-5" y="-6" width="10" height="12" class="c-card"/><ellipse rx="9.5" ry="9" class="lg-loop"/><ellipse rx="11" ry="10.5" class="lg-loop" transform="rotate(14)"/>'), 'Circled = contacts reached'],
+    [ico('<path d="M-11,4Q0,9 11,4" class="lg-ref"/><path d="M0,-7L1.9,-2.4L6.7,-2.2L3,.9L4.2,5.6L0,3L-4.2,5.6L-3,.9L-6.7,-2.2L-1.9,-2.4Z" class="c-star"/>'), 'Referral'],
+    [ico('<path d="M-8,-5H9V5H-8Z" class="c-manila"/><path d="M-9,-6L9,6M9,-6L-9,6" class="lg-x"/>'), 'Dead end'],
+    [ico('<path d="M-8,-5H9V5H-8Z" class="c-manila"/><ellipse rx="11.5" ry="8.5" class="lg-offer"/>'), 'Offer'],
   ].map(([svgm, label]) => `<span>${svgm}${label}</span>`).join('');
 }
-function wrapMark(els) { const g = svgEl('g', 'mark'); g.append(...els); return [g]; }
 
 function renderChips() {
   const tc = $('#typeChips'); tc.replaceChildren();
@@ -678,11 +624,11 @@ function renderEmpty() {
   if (total && !loading) { el.hidden = true; return; }
   if (state.view !== 'graph') { el.hidden = true; return; }
   el.hidden = false; el.replaceChildren(h('div', { class: 'empty-card' },
-    loading ? [h('h2', null, 'Loading your job hunt…'), h('p', null, 'Companies, roles and applications will appear here as a connected map.')]
-      : [h('h2', null, 'Map your job hunt'), h('p', null, 'Start with a company you want to work for. Then add the role, your application, the resume you sent and the people you talk to. Each one links up on this map.'),
+    loading ? [h('h2', null, 'Pulling the case files…'), h('p', null, 'Companies, roles and applications will be pinned up here, strung together.')]
+      : [h('h2', null, 'Open the case'), h('p', null, 'Pin up a company you’re after. Then add the role, your application, the resume you sent and the people you talk to. Red string ties every lead together.'),
         h('div', { class: 'row', style: 'justify-content:center' },
-          h('button', { class: 'btn primary', onclick: () => openNew('companies') }, 'Add your first company'),
-          h('button', { class: 'btn', onclick: loadSample }, 'Explore a sample map'))]));
+          h('button', { class: 'btn primary', onclick: () => openNew('companies') }, 'Pin your first company'),
+          h('button', { class: 'btn', onclick: loadSample }, 'See a sample case'))]));
 }
 
 /* ---------- Pipeline ---------- */
@@ -848,7 +794,7 @@ function fieldEl(col, f) {
             const note = h('div', { class: 'note' }, 'Uploading ' + file.name + '…'); ctl.append(note);
             if (file.size > 20 * 1024 * 1024) { toast('That file is over 20 MB. Compress it and try again.'); inp.value = ''; return; }
             try { const res = await store.upload(file, type); d.fileId = res.id; d.fileName = file.name; d.fileType = res.contentType; markDirty(); toast('File attached. Save to keep it.'); }
-            catch (e) { console.warn('[rat-race] upload', e); toast('Upload failed. Try again in a moment.'); }
+            catch (e) { console.warn('[job-hunt] upload', e); toast('Upload failed. Try again in a moment.'); }
             draw();
           };
           kids.push(inp);
@@ -890,7 +836,7 @@ function renderPanel(force) {
   if (!isNew && col === 'companies') {
     const ppl = [...companyContacts(id)].map(pid => get('people', pid));
     body.append(h('div', { class: 'perf' }, h('b', null, ppl.length), ` contact${ppl.length === 1 ? '' : 's'} reached here`,
-      ppl.some(p => p.kind === 'Referral') ? ', including a referral' : '', ppl.length ? '' : '. Add a contact to light this company up on the map.'));
+      ppl.some(p => p.kind === 'Referral') ? ', including a referral' : '', ppl.length ? '' : '. Add a contact to circle this company on the board.'));
   }
   if (!isNew && col === 'documents' && d.kind === 'Resume') {
     const used = all('applications').filter(a => a.resumeId === id && a.status !== 'wishlist');
@@ -983,10 +929,10 @@ function setView(v) {
   state.view = v;
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
   for (const k of ['graph', 'pipeline', 'timeline']) $('#view-' + k).hidden = k !== v;
-  try { localStorage.setItem('rr-view', v); } catch (e) {}
+  try { localStorage.setItem('jh-view', v); } catch (e) {}
   scheduleRender();
 }
-try { const v = localStorage.getItem('rr-view'); if (['graph', 'pipeline', 'timeline'].includes(v)) setView(v); } catch (e) {}
+try { const v = localStorage.getItem('jh-view'); if (['graph', 'pipeline', 'timeline'].includes(v)) setView(v); } catch (e) {}
 const KEYS = ['graph', 'pipeline', 'timeline'];
 if (KEYS.includes(location.hash.slice(1))) setView(location.hash.slice(1));
 

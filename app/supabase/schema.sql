@@ -1,4 +1,4 @@
--- The Rat Race: database schema for Supabase.
+-- Job Hunt: database schema for Supabase.
 -- Run this once in your Supabase project: Dashboard → SQL Editor → New query → paste → Run.
 
 -- Every map item (company, role, application, document, contact, interview, event)

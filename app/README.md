@@ -1,6 +1,6 @@
-# The Rat Race
+# Job Hunt
 
-A job hunt map where anyone can sign up and keep their own private map of companies, roles, applications, resumes, contacts, interviews and events.
+A job hunt case board where anyone can sign up and keep their own private corkboard of companies, roles, applications, resumes, contacts, interviews and events.
 
 - **Frontend:** Vite with plain JavaScript and d3 (`src/`)
 - **Backend:** Supabase, which handles sign-in by email link (optional Google), the Postgres database, live updates and file storage
@@ -16,7 +16,7 @@ A job hunt map where anyone can sign up and keep their own private map of compan
    - live updates
    - the private `files` bucket
 3. Open **Authentication → URL Configuration**:
-   - **Site URL:** your deployed address, e.g. `https://the-rat-race.vercel.app`. Use `http://localhost:5173` until you deploy.
+   - **Site URL:** your deployed address, e.g. `https://job-hunt.vercel.app`. Use `http://localhost:5173` until you deploy.
    - **Redirect URLs:** add `http://localhost:5173` and your deployed address.
 4. Open **Project Settings → API** and copy the **Project URL** and the **anon public** key.
 
@@ -47,7 +47,7 @@ Netlify works the same way, with build command `npm run build` and publish direc
 
 ## How the data is stored
 
-Each map item is one row in `records`:
+Each board item is one row in `records`:
 
 | column | meaning |
 | --- | --- |
@@ -58,13 +58,15 @@ Each map item is one row in `records`:
 
 Files are stored at `files/<user id>/<uuid>-<filename>` and opened through short-lived signed links.
 
-Users can export their whole map as JSON, and import it again, from the account menu.
+Users can export their whole board as JSON, and import it again, from the account menu.
 
 ## Files
 
 - `index.html`: the sign-in screen and the app's markup
-- `src/main.js`: the map, pipeline, timeline, detail panel, sign-in and import/export
+- `src/main.js`: the board, pipeline, timeline, detail panel, sign-in and import/export
+- `src/board.js`: draws each record as pinned paper (mugshot polaroids, index cards, case tags, sticky notes) and the thumbtacks
+- `src/sketch.js`: rough.js marker scribbles (circles, X marks)
 - `src/store.js`: the Supabase data layer (loading, optimistic writes, live updates, files)
-- `src/sample.js`: the sample map that new users can load from the empty state
-- `src/style.css`: design tokens (light and dark) and all styles
+- `src/sample.js`: the sample case that new users can load from the empty state
+- `src/style.css`: design tokens (light and dark) and all styles, including the cork, paper and string
 - `supabase/schema.sql`: the table, access rules, storage bucket and limits
