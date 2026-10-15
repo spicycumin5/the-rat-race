@@ -1,0 +1,1093 @@
+<title>The Rat Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen app shell. Header + stats strip on top, the active view fills the rest, a detail panel slides over the right edge (bottom sheet on phones). */
+:root {
+  --bg: #F2F3F7; --surface: #FFFFFF; --surface-2: #E8EAF1; --ink: #161A2E; --ink-2: #3A4060; --muted: #5E647C;
+  --line: #D6DAE4; --line-strong: #B9BFCE; --accent: #3646C4; --accent-ink: #FFFFFF; --focus: #3646C4;
+  --c-company: #3646C4; --c-doc: #9A6B2F; --c-person: #B4307A; --c-interview: #6D46D9; --c-event: #8A90A6;
+  --s-wishlist: #A4AABD; --s-applied: #2F7FD6; --s-screen: #12949F; --s-interviewing: #DD8618;
+  --s-offer: #2B9A56; --s-rejected: #D0433D; --s-ghosted: #8E93A6; --s-withdrawn: #BFC3D0;
+  --warn-bg: #FFF4E0; --warn-ink: #7A4A00; --referral: #C08F00;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 8px; --shadow: 0 10px 30px rgba(22, 26, 46, .14);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F1220; --surface: #181C2C; --surface-2: #232839; --ink: #E7E9F2; --ink-2: #C3C7D8; --muted: #989EB6;
+  --line: #2C3247; --line-strong: #434A63; --accent: #8E9AFF; --accent-ink: #0F1220; --focus: #8E9AFF;
+  --c-company: #8E9AFF; --c-doc: #CFA36B; --c-person: #F07AB8; --c-interview: #A98DFF; --c-event: #737A93;
+  --s-wishlist: #7C8299; --s-applied: #62A4F4; --s-screen: #37C2CC; --s-interviewing: #F4A442;
+  --s-offer: #4CC47A; --s-rejected: #F0675F; --s-ghosted: #6F758B; --s-withdrawn: #4F5569;
+  --warn-bg: #3A2C12; --warn-ink: #F6CF8A; --referral: #F2C94C; --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0F1220; --surface: #181C2C; --surface-2: #232839; --ink: #E7E9F2; --ink-2: #C3C7D8; --muted: #989EB6;
+  --line: #2C3247; --line-strong: #434A63; --accent: #8E9AFF; --accent-ink: #0F1220; --focus: #8E9AFF;
+  --c-company: #8E9AFF; --c-doc: #CFA36B; --c-person: #F07AB8; --c-interview: #A98DFF; --c-event: #737A93;
+  --s-wishlist: #7C8299; --s-applied: #62A4F4; --s-screen: #37C2CC; --s-interviewing: #F4A442;
+  --s-offer: #4CC47A; --s-rejected: #F0675F; --s-ghosted: #6F758B; --s-withdrawn: #4F5569;
+  --warn-bg: #3A2C12; --warn-ink: #F6CF8A; --referral: #F2C94C; --shadow: 0 10px 30px rgba(0, 0, 0, .45); color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+#app { height: 100%; display: flex; flex-direction: column; gap: 10px; padding-inline: 16px; padding-block: 12px; min-width: 0; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { font: 700 24px/1 var(--f-display); letter-spacing: -.02em; margin: 0; }
+.brand .sub { font: 500 11px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.tabs { display: flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+.tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 500; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.tools { display: flex; gap: 8px; align-items: center; position: relative; flex-wrap: wrap; }
+#search { width: 220px; max-width: 100%; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 13px; border-radius: 999px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover { border-color: var(--line-strong); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+.btn.danger { color: var(--s-rejected); }
+.btn.danger.solid { background: var(--s-rejected); color: #fff; border-color: var(--s-rejected); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 6px; min-width: 200px; display: grid; }
+.menu button { display: flex; align-items: center; gap: 10px; border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.menu button:hover, .menu button:focus-visible { background: var(--surface-2); }
+
+/* Stats strip */
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 26px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.stat { display: grid; gap: 1px; }
+.stat b { font: 700 20px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.stat span { font: 500 10.5px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.funnel { flex: 1 1 240px; min-width: 0; display: grid; gap: 5px; }
+.funnel-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.funnel-bar i { display: block; height: 100%; }
+.funnel-legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font: 11px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.funnel-legend em { font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.best { font-size: 12.5px; color: var(--muted); max-width: 30ch; }
+.best strong { color: var(--ink); font-weight: 600; }
+
+.banner { padding: 10px 14px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn-ink); }
+
+/* Main area */
+.main { position: relative; flex: 1; min-height: 240px; min-width: 0; }
+.view { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+
+/* Graph */
+#graph { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 22px 22px; }
+#graph:active { cursor: grabbing; }
+.link { stroke: var(--line-strong); stroke-width: 1.2; transition: opacity .15s; }
+.link.k-applications-resumeId, .link.k-applications-letterId { stroke-dasharray: 3 3; }
+.link.k-events-refs { stroke-dasharray: 1 3; }
+.node { cursor: pointer; transition: opacity .15s; }
+.shape { stroke: var(--surface); stroke-width: 1.5; }
+.t-companies .shape { fill: var(--c-company); }
+.t-roles .shape { fill: var(--surface); stroke: var(--c-company); stroke-width: 2.2; }
+.t-documents .shape { fill: var(--surface); stroke: var(--c-doc); stroke-width: 2.2; }
+.t-people .shape { fill: var(--c-person); }
+.t-interviews .shape { fill: var(--c-interview); }
+.t-events .shape { fill: var(--c-event); }
+.s-wishlist .shape { fill: var(--s-wishlist); } .s-applied .shape { fill: var(--s-applied); }
+.s-screen .shape { fill: var(--s-screen); } .s-interviewing .shape { fill: var(--s-interviewing); }
+.s-offer .shape { fill: var(--s-offer); } .s-rejected .shape { fill: var(--s-rejected); }
+.s-withdrawn .shape { fill: var(--s-withdrawn); }
+.s-ghosted .shape { fill: var(--surface); stroke: var(--s-ghosted); stroke-width: 2; stroke-dasharray: 2.5 2; }
+.label { font: 500 11px var(--f-body); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; text-anchor: middle; opacity: 0; transition: opacity .15s; }
+.t-companies .label { opacity: 1; font: 700 12.5px var(--f-display); }
+#graph.zoomed .label, .node.hl .label, .node.selected .label, .node.match .label { opacity: 1; }
+#graph.hovering .node:not(.hl) { opacity: .16; }
+#graph.hovering .link:not(.hl) { opacity: .07; }
+.link.hl { stroke: var(--ink-2); stroke-width: 1.8; }
+.node.selected .shape { stroke: var(--ink); stroke-width: 3; }
+#graph.searching .node:not(.match) { opacity: .14; }
+#graph.searching .link { opacity: .1; }
+/* Outreach halos: one ring per contact reached at a company */
+.ring { fill: none; pointer-events: none; }
+.ring-reach { stroke: var(--c-company); stroke-width: 1.6; fill: var(--c-company); fill-opacity: .06; }
+.ring-reach.i0 { stroke-opacity: .6; } .ring-reach.i1 { stroke-opacity: .4; } .ring-reach.i2 { stroke-opacity: .25; } .ring-reach.i3 { stroke-opacity: .14; }
+.hot .ring-reach.last { animation: halo 2.8s ease-in-out infinite; }
+@keyframes halo { 0%, 100% { stroke-opacity: .1; fill-opacity: .03; } 50% { stroke-opacity: .5; fill-opacity: .12; } }
+.reach { font: 500 10px var(--f-mono); fill: var(--c-company); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+/* Referral: gold ring + star; gold link to the referrer */
+.ring-ref { stroke: var(--referral); stroke-width: 2.2; }
+.ring-offer { stroke: var(--s-offer); stroke-width: 5; stroke-opacity: .3; }
+.badge-star { fill: var(--referral); stroke: var(--surface); stroke-width: 1; }
+.link.referral { stroke: var(--referral); stroke-width: 2.4; stroke-dasharray: none; }
+/* Closed applications */
+.mark { fill: none; stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+.s-rejected .shape { fill: var(--surface); stroke: var(--s-rejected); stroke-width: 2; }
+.s-rejected .mark { stroke: var(--s-rejected); }
+.s-withdrawn .mark { stroke: var(--muted); }
+.node.s-rejected, .node.s-withdrawn { opacity: .7; }
+.s-rejected .label, .s-withdrawn .label { text-decoration: line-through; fill: var(--muted); }
+.link.dead { stroke-opacity: .35; stroke-dasharray: 2 3; }
+.legend { position: absolute; left: 12px; bottom: 28px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11.5px; color: var(--muted); pointer-events: none; background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 4px 8px; border-radius: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend svg { width: 22px; height: 22px; overflow: visible; }
+.tag-ref { color: var(--referral); font-weight: 500; }
+.card.closed-card { opacity: .72; }
+.card.closed-card .t { text-decoration: line-through; text-decoration-color: var(--s-rejected); }
+.card.ref-card { border-color: var(--referral); box-shadow: inset 3px 0 0 var(--referral); }
+
+.graph-ctl { position: absolute; left: 12px; top: 12px; right: 90px; display: grid; gap: 6px; pointer-events: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 12px; color: var(--ink-2); }
+.chip .n { font: 11px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="false"] { opacity: .45; background: transparent; }
+.chip[aria-pressed="false"] .ico { filter: grayscale(1); }
+.ico { width: 14px; height: 14px; flex: none; overflow: visible; }
+.graph-btns { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+.hint { position: absolute; left: 12px; bottom: 10px; font: 11px var(--f-mono); color: var(--muted); pointer-events: none; }
+
+.empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; pointer-events: none; }
+.empty-card { pointer-events: auto; max-width: 400px; text-align: center; display: grid; gap: 10px; justify-items: center; padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.empty-card h2 { font: 700 20px var(--f-display); margin: 0; text-wrap: balance; }
+.empty-card p { margin: 0; color: var(--muted); }
+
+/* Pipeline */
+#view-pipeline { overflow: auto; }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 10px; padding: 12px; min-height: 100%; }
+.col { display: flex; flex-direction: column; gap: 8px; background: var(--bg); border-radius: var(--r); padding: 8px; min-width: 0; border: 2px solid transparent; transition: border-color .12s; }
+.col.over { border-color: var(--accent); }
+.col.closed { background: transparent; border: 2px dashed var(--line); }
+.col-head { display: flex; align-items: center; gap: 7px; font: 700 13.5px var(--f-display); padding: 2px 4px 4px; }
+.col-head .count { margin-left: auto; font: 500 11px var(--f-mono); color: var(--muted); }
+.cards { display: grid; gap: 7px; align-content: start; flex: 1; }
+.card { text-align: left; display: grid; gap: 4px; padding: 9px 10px; border-radius: 7px; background: var(--surface); border: 1px solid var(--line); cursor: grab; }
+.card:hover { border-color: var(--line-strong); }
+.card.dragging { opacity: .4; }
+.card .t { font-weight: 600; line-height: 1.25; }
+.card .c { color: var(--muted); font-size: 12.5px; }
+.card .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font: 11px var(--f-mono); color: var(--muted); }
+.card .warn { color: var(--s-interviewing); }
+.col-empty { font-size: 12px; color: var(--muted); padding: 6px 4px; }
+
+/* Timeline */
+#view-timeline { overflow: auto; }
+.tl { max-width: 760px; margin: 0 auto; padding: 16px; display: grid; gap: 18px; }
+.tl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tl-bar label { font: 500 11px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.tl-bar select { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
+.tl h3 { font: 700 15px var(--f-display); margin: 0 0 6px; color: var(--ink-2); }
+.tl h3 small { font: 500 11px var(--f-mono); color: var(--muted); margin-left: 6px; }
+.tl-list { display: grid; border-left: 2px solid var(--line); margin-left: 6px; }
+.tl-item { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: start; padding: 7px 8px 7px 0; position: relative; text-align: left; border: 0; background: none; cursor: pointer; border-radius: 6px; }
+.tl-item:hover { background: var(--bg); }
+.tl-item .ico { position: absolute; left: -8px; top: 10px; background: var(--surface); }
+.tl-item time { font: 11.5px var(--f-mono); color: var(--muted); padding-left: 16px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+.tl-item .what { min-width: 0; }
+.tl-item .what b { font-weight: 600; }
+.tl-item .what span { color: var(--muted); font-size: 12.5px; display: block; }
+.tl-none { color: var(--muted); }
+.upcoming { background: var(--bg); border-radius: var(--r); padding: 12px; }
+
+/* Panel */
+.panel { position: absolute; right: 10px; top: 10px; bottom: 10px; width: 380px; max-width: calc(100% - 20px); z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.p-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font: 500 11px var(--f-mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.x { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); padding: 4px 6px; border-radius: 6px; }
+.x:hover { background: var(--surface-2); }
+.p-body { overflow: auto; padding: 6px 14px 14px; display: grid; gap: 14px; align-content: start; }
+.p-title { font: 700 21px/1.15 var(--f-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.p-sub { color: var(--muted); margin: 2px 0 0; }
+.nudge { background: var(--warn-bg); color: var(--warn-ink); padding: 8px 10px; border-radius: 7px; font-size: 13px; }
+.pills { display: flex; flex-wrap: wrap; gap: 5px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 12.5px; }
+.pill[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: grid; gap: 4px; min-width: 0; grid-column: span 2; }
+.field.half { grid-column: span 1; }
+.field > label, .sec-label { font: 500 10.5px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.field input, .field select, .field textarea { width: 100%; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); min-width: 0; }
+.field textarea { resize: vertical; min-height: 64px; }
+.multi { display: grid; gap: 6px; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px 3px 9px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; max-width: 100%; }
+.tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 5px; border-radius: 999px; }
+.file-box { display: grid; gap: 8px; }
+.file-box img { border-radius: 6px; border: 1px solid var(--line); max-height: 200px; object-fit: contain; }
+.file-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.file-row a { color: var(--accent); overflow-wrap: anywhere; }
+.note { font-size: 12.5px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.links { display: grid; gap: 4px; }
+.link-chip { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; border: 0; background: none; cursor: pointer; text-align: left; width: 100%; }
+.link-chip:hover { background: var(--surface-2); }
+.link-chip .lt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-chip .rel { font: 10.5px var(--f-mono); color: var(--muted); white-space: nowrap; }
+.p-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+.p-foot .spacer { flex: 1; }
+.perf { font-size: 13px; }
+.perf b { font-variant-numeric: tabular-nums; }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 999px; font-size: 13px; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+
+@media (max-width: 720px) {
+  .brand h1 { font-size: 20px; }
+  .brand .sub { display: none; }
+  .tools { width: 100%; }
+  #search { flex: 1; width: auto; }
+  .stats { gap: 8px 18px; padding: 8px 12px; }
+  .stat b { font-size: 17px; }
+  .best { display: none; }
+  .panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-width: none; max-height: 78%; border-radius: 14px 14px 0 0; }
+  .graph-ctl { right: 60px; }
+  .hint { display: none; }
+  .legend { bottom: 10px; right: 12px; }
+  .form { grid-template-columns: 1fr; }
+  .field.half { grid-column: span 2; }
+}
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><h1>The Rat Race</h1><span class="sub">job hunt map</span></div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" data-view="graph" aria-selected="true" id="tab-graph">Map</button>
+      <button role="tab" data-view="pipeline" aria-selected="false" id="tab-pipeline">Pipeline</button>
+      <button role="tab" data-view="timeline" aria-selected="false" id="tab-timeline">Timeline</button>
+    </nav>
+    <div class="tools">
+      <input id="search" type="search" placeholder="Search companies, people, notes" aria-label="Search">
+      <button id="clearSample" class="btn small" hidden>Clear sample data</button>
+      <button id="addBtn" class="btn primary" aria-haspopup="true" aria-expanded="false">+ Add</button>
+      <div id="addMenu" class="menu" hidden></div>
+    </div>
+  </header>
+  <section class="stats" id="stats" aria-label="Summary"></section>
+  <div id="banner" class="banner" hidden></div>
+  <main class="main">
+    <section id="view-graph" class="view">
+      <svg id="graph" aria-label="Map of companies, roles, applications and contacts"></svg>
+      <div class="graph-ctl"><div id="typeChips" class="chips"></div><div id="statusChips" class="chips"></div></div>
+      <div class="graph-btns"><button id="fitBtn" class="btn small">Fit</button></div>
+      <div class="legend" aria-label="Legend">
+        <span><svg viewBox="-11 -11 22 22" aria-hidden="true"><circle class="ring ring-reach i1" r="10"/><circle class="ring ring-reach i0" r="7.5"/><g class="t-companies"><path class="shape" d="M0,-5L4.33,-2.5L4.33,2.5L0,5L-4.33,2.5L-4.33,-2.5Z"/></g></svg>Rings = contacts reached</span>
+        <span><svg viewBox="-11 -11 22 22" aria-hidden="true"><circle class="ring ring-ref" r="7.5"/><g class="s-applied"><circle class="shape" r="5"/></g><path class="badge-star" transform="translate(6,-6)" d="M0,-3.6L1.06,-1.1L3.42,-1.1L1.6,0.45L2.2,2.9L0,1.5L-2.2,2.9L-1.6,0.45L-3.42,-1.1L-1.06,-1.1Z"/></svg>Referral</span>
+        <span><svg viewBox="-11 -11 22 22" aria-hidden="true"><g class="s-rejected"><circle class="shape" r="6"/><path class="mark" d="M-3.3,-3.3L3.3,3.3M3.3,-3.3L-3.3,3.3"/></g></svg>Rejected</span>
+        <span><svg viewBox="-11 -11 22 22" aria-hidden="true"><circle class="ring ring-offer" r="8"/><g class="s-offer"><circle class="shape" r="5"/></g></svg>Offer</span>
+      </div>
+      <div class="hint">drag to move · scroll to zoom · click a node to open it</div>
+      <div id="empty" class="empty" hidden></div>
+    </section>
+    <section id="view-pipeline" class="view" hidden><div id="board" class="board"></div></section>
+    <section id="view-timeline" class="view" hidden><div id="timeline" class="tl"></div></section>
+    <aside id="panel" class="panel" hidden aria-label="Details"></aside>
+  </main>
+  <div id="toast" class="toast" hidden role="status"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+
+/* ---------- Schema ---------- */
+const STATUSES = [
+  { k: 'wishlist', l: 'Wishlist' }, { k: 'applied', l: 'Applied' }, { k: 'screen', l: 'Screen' },
+  { k: 'interviewing', l: 'Interviewing' }, { k: 'offer', l: 'Offer' }, { k: 'rejected', l: 'Rejected' },
+  { k: 'ghosted', l: 'Ghosted' }, { k: 'withdrawn', l: 'Withdrawn' }];
+const STATUS_L = Object.fromEntries(STATUSES.map(s => [s.k, s.l]));
+const CLOSED = ['rejected', 'ghosted', 'withdrawn'];
+const opts = a => a.map(x => ({ v: x, l: x || '—' }));
+
+const TYPES = {
+  companies: { label: 'Company', plural: 'Companies', r: 17, fields: [
+    { k: 'name', label: 'Name', kind: 'text', req: true, ph: 'e.g. Acme Corp' },
+    { k: 'industry', label: 'Industry', kind: 'text', half: true },
+    { k: 'location', label: 'Location', kind: 'text', half: true },
+    { k: 'url', label: 'Website', kind: 'url', half: true },
+    { k: 'interest', label: 'Interest (1–5)', kind: 'select', options: opts(['', '1', '2', '3', '4', '5']), half: true },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+  roles: { label: 'Role', plural: 'Roles', r: 10, fields: [
+    { k: 'title', label: 'Job title', kind: 'text', req: true, ph: 'e.g. Senior Data Analyst' },
+    { k: 'companyId', label: 'Company', kind: 'ref', to: 'companies' },
+    { k: 'url', label: 'Posting link', kind: 'url' },
+    { k: 'salary', label: 'Salary range', kind: 'text', ph: '$110k–135k', half: true },
+    { k: 'workplace', label: 'Workplace', kind: 'select', options: opts(['', 'Remote', 'Hybrid', 'On-site']), half: true },
+    { k: 'posted', label: 'Posted', kind: 'date', half: true },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+  applications: { label: 'Application', plural: 'Applications', r: 10, fields: [
+    { k: 'roleId', label: 'Role', kind: 'ref', to: 'roles', req: true },
+    { k: 'status', label: 'Stage', kind: 'status' },
+    { k: 'applied', label: 'Date applied', kind: 'date', half: true },
+    { k: 'source', label: 'Source', kind: 'select', half: true, options: opts(['', 'Company site', 'LinkedIn', 'Referral', 'Recruiter', 'Job board', 'Cold outreach', 'Other']) },
+    { k: 'resumeId', label: 'Resume used', kind: 'ref', to: 'documents', filter: d => d.kind === 'Resume' },
+    { k: 'letterId', label: 'Cover letter / outreach', kind: 'ref', to: 'documents', filter: d => d.kind !== 'Resume' },
+    { k: 'personIds', label: 'Contacts', kind: 'refs', to: 'people' },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+  documents: { label: 'Document', plural: 'Documents', r: 9, fields: [
+    { k: 'name', label: 'Version name', kind: 'text', req: true, ph: 'e.g. Resume v3 (analytics)' },
+    { k: 'kind', label: 'Kind', kind: 'select', options: opts(['Resume', 'Cover letter', 'Cold email', 'Portfolio', 'Other']) },
+    { k: 'fileId', label: 'File', kind: 'file' },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+  people: { label: 'Contact', plural: 'Contacts', r: 9, fields: [
+    { k: 'name', label: 'Name', kind: 'text', req: true },
+    { k: 'kind', label: 'Relationship', kind: 'select', half: true, options: opts(['Recruiter', 'Referral', 'Hiring manager', 'Interviewer', 'Other']) },
+    { k: 'companyId', label: 'Company', kind: 'ref', to: 'companies', half: true },
+    { k: 'email', label: 'Email', kind: 'text', half: true },
+    { k: 'phone', label: 'Phone', kind: 'text', half: true },
+    { k: 'linkedin', label: 'LinkedIn', kind: 'url' },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+  interviews: { label: 'Interview', plural: 'Interviews', r: 8, fields: [
+    { k: 'applicationId', label: 'Application', kind: 'ref', to: 'applications', req: true },
+    { k: 'round', label: 'Round', kind: 'select', half: true, options: opts(['Recruiter screen', 'Phone screen', 'Technical', 'Take-home', 'Onsite', 'Panel', 'Hiring manager', 'Final', 'Other']) },
+    { k: 'date', label: 'When', kind: 'datetime', half: true },
+    { k: 'personIds', label: 'Interviewers', kind: 'refs', to: 'people' },
+    { k: 'outcome', label: 'Outcome', kind: 'select', options: opts(['Pending', 'Passed', 'Did not pass', 'Cancelled']) },
+    { k: 'notes', label: 'Notes / questions asked', kind: 'textarea' }] },
+  events: { label: 'Event', plural: 'Events', r: 5, fields: [
+    { k: 'title', label: 'What happened', kind: 'text', req: true, ph: 'e.g. Sent follow-up to recruiter' },
+    { k: 'kind', label: 'Kind', kind: 'select', half: true, options: opts(['Note', 'Outreach sent', 'Follow-up', 'Reply received', 'Rejection', 'Offer', 'Status change']) },
+    { k: 'date', label: 'Date', kind: 'date', half: true },
+    { k: 'refs', label: 'Related to', kind: 'anyrefs' },
+    { k: 'notes', label: 'Notes', kind: 'textarea' }] },
+};
+const COLS = Object.keys(TYPES);
+const DEFAULTS = {
+  applications: () => ({ status: 'applied', applied: localDate() }),
+  documents: () => ({ kind: 'Resume' }),
+  people: () => ({ kind: 'Recruiter' }),
+  interviews: () => ({ outcome: 'Pending', round: 'Phone screen' }),
+  events: () => ({ kind: 'Note', date: localDate() }),
+};
+
+/* ---------- State ---------- */
+const state = {
+  data: Object.fromEntries(COLS.map(c => [c, new Map()])),
+  loaded: new Set(), view: 'graph', selected: null, search: '',
+  types: new Set(COLS.filter(c => c !== 'events')), statuses: new Set(STATUSES.map(s => s.k)),
+  tlCompany: '', dbState: 'connecting',
+};
+let db = null, assets = null, readOnly = false;
+let panel = { mode: null };
+
+/* ---------- Helpers ---------- */
+function localDate(d = new Date()) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function parseD(iso) { return iso ? new Date(iso.length === 10 ? iso + 'T00:00:00' : iso) : null; }
+function daysBetween(a, b) { const x = parseD(a), y = parseD(b); return x && y ? Math.max(0, Math.round((y - x) / 864e5)) : null; }
+function daysSince(iso) { const d = parseD(iso); return d ? Math.floor((Date.now() - d) / 864e5) : null; }
+function fmtDate(iso, withTime = true) {
+  const d = parseD(iso); if (!d || isNaN(d)) return '';
+  const o = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+  let s = d.toLocaleDateString(undefined, o);
+  if (withTime && iso.length > 10) s += ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return s;
+}
+const get = (col, id) => id ? state.data[col]?.get(id) : undefined;
+const getKey = key => { if (!key) return; const [c, id] = key.split('/'); return get(c, id); };
+const exists = key => !!getKey(key);
+const all = col => [...state.data[col].values()];
+const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
+
+function companyOf(col, r) {
+  if (!r) return;
+  switch (col) {
+    case 'companies': return r;
+    case 'roles': case 'people': return get('companies', r.companyId);
+    case 'applications': return companyOf('roles', get('roles', r.roleId));
+    case 'interviews': return companyOf('applications', get('applications', r.applicationId));
+    case 'events': for (const k of r.refs || []) { const c = companyOf(k.split('/')[0], getKey(k)); if (c) return c; }
+  }
+}
+function titleOf(col, r) {
+  if (!r) return '(missing)';
+  switch (col) {
+    case 'companies': return r.name || 'Unnamed company';
+    case 'roles': return r.title || 'Untitled role';
+    case 'applications': { const role = get('roles', r.roleId); return role ? (role.title || 'Untitled role') : 'Application'; }
+    case 'documents': return r.name || 'Untitled document';
+    case 'people': return r.name || 'Unnamed contact';
+    case 'interviews': return r.round || 'Interview';
+    case 'events': return r.title || 'Event';
+  }
+}
+function subOf(col, r) {
+  if (!r) return '';
+  const co = companyOf(col, r)?.name;
+  switch (col) {
+    case 'companies': return [r.industry, r.location].filter(Boolean).join(' · ');
+    case 'roles': return [co, r.workplace, r.salary].filter(Boolean).join(' · ');
+    case 'applications': return [co, STATUS_L[r.status] || 'Applied'].filter(Boolean).join(' · ');
+    case 'documents': return r.kind || '';
+    case 'people': return [r.kind, co].filter(Boolean).join(' at ');
+    case 'interviews': return [co, fmtDate(r.date)].filter(Boolean).join(' · ');
+    case 'events': return [r.kind, fmtDate(r.date)].filter(Boolean).join(' · ');
+  }
+}
+function optLabel(col, r) {
+  const co = companyOf(col, r)?.name;
+  switch (col) {
+    case 'roles': case 'applications': return titleOf(col, r) + (co ? ' · ' + co : '');
+    case 'interviews': return titleOf(col, r) + (co ? ' · ' + co : '');
+    case 'people': return titleOf(col, r) + (r.kind ? ' (' + r.kind + ')' : '');
+    default: return titleOf(col, r);
+  }
+}
+function matches(col, r) {
+  const q = state.search.trim().toLowerCase(); if (!q) return true;
+  return [optLabel(col, r), subOf(col, r), r.notes, r.email, r.source, r.salary].filter(Boolean).join(' ').toLowerCase().includes(q);
+}
+function interviewsFor(appId) { return all('interviews').filter(i => i.applicationId === appId); }
+function reachedInterview(a) { return ['interviewing', 'offer'].includes(a.status) || interviewsFor(a.id).length > 0; }
+// Distinct people you've reached at a company: contacts filed under it, plus contacts on its applications/interviews.
+function companyContacts(cid) {
+  const ids = new Set();
+  for (const p of all('people')) if (p.companyId === cid) ids.add(p.id);
+  for (const a of all('applications')) if (companyOf('applications', a)?.id === cid) (a.personIds || []).forEach(id => get('people', id) && ids.add(id));
+  for (const i of all('interviews')) if (companyOf('interviews', i)?.id === cid) (i.personIds || []).forEach(id => get('people', id) && ids.add(id));
+  return ids;
+}
+// A referral is a linked contact whose relationship is Referral, or Source set to Referral.
+function referralOf(a) {
+  if (!a) return null;
+  const p = (a.personIds || []).map(id => get('people', id)).find(p => p && p.kind === 'Referral');
+  return p || (a.source === 'Referral' ? { name: '' } : null);
+}
+const STAR = 'M0,-3.6L1.06,-1.1L3.42,-1.1L1.6,0.45L2.2,2.9L0,1.5L-2.2,2.9L-1.6,0.45L-3.42,-1.1L-1.06,-1.1Z';
+function markPath(status, r) {
+  const a = r * .55;
+  if (status === 'rejected') return `M${-a},${-a}L${a},${a}M${a},${-a}L${-a},${a}`;
+  if (status === 'withdrawn') return `M${a},${-a}L${-a},${a}`;
+  return '';
+}
+
+function refsOf(col, r) {
+  const out = [];
+  for (const f of TYPES[col].fields) {
+    const v = r[f.k]; if (!v) continue;
+    if (f.kind === 'ref') out.push({ f, key: f.to + '/' + v });
+    else if (f.kind === 'refs' && Array.isArray(v)) v.forEach(id => out.push({ f, key: f.to + '/' + id }));
+    else if (f.kind === 'anyrefs' && Array.isArray(v)) v.forEach(k => out.push({ f, key: k }));
+  }
+  return out;
+}
+function allLinks() {
+  const L = [];
+  for (const c of COLS) for (const r of state.data[c].values())
+    for (const x of refsOf(c, r)) if (exists(x.key)) L.push({ source: c + '/' + r.id, target: x.key, kind: c + '-' + x.f.k, rel: x.f.label });
+  return L;
+}
+
+/* ---------- Shapes ---------- */
+function shapePath(col, r) {
+  switch (col) {
+    case 'companies': { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 2; p += (i ? 'L' : 'M') + (r * Math.cos(a)).toFixed(2) + ',' + (r * Math.sin(a)).toFixed(2); } return p + 'Z'; }
+    case 'roles': { const s = r * .82; return `M${-s},${-s}H${s}V${s}H${-s}Z`; }
+    case 'documents': { const w = r * .74, t = r; return `M${-w},${-t}H${w * .35}L${w},${-t + w * .65}V${t}H${-w}Z`; }
+    case 'people': return `M0,${-r}L${r * .95},${r * .72}L${-r * .95},${r * .72}Z`;
+    case 'interviews': return `M0,${-r * 1.1}L${r * 1.1},0L0,${r * 1.1}L${-r * 1.1},0Z`;
+    default: return `M${r},0A${r},${r} 0 1 1 ${-r},0A${r},${r} 0 1 1 ${r},0Z`;
+  }
+}
+function icon(col, status) {
+  const r = col === 'companies' ? 6.5 : col === 'events' ? 4 : 5.5;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'ico'); svg.setAttribute('viewBox', '-8 -8 16 16'); svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = `<g class="t-${col}${status ? ' s-' + status : ''}"><path class="shape" d="${shapePath(col, r)}"/><path class="mark" d="${markPath(status, r)}"/></g>`;
+  return svg;
+}
+const statusColor = s => `var(--s-${s})`;
+
+/* ---------- Data layer ---------- */
+function handleErr(e) {
+  const code = e && e.code;
+  if (code === 'invalid_argument') { readOnly = true; toast('You can view this tracker, but changes are not allowed for your account.'); }
+  else if (code === 'quota_exceeded') toast('The tracker is full. Delete old events or sample data to make room.');
+  else if (code === 'resource_exhausted') toast('Too many changes at once. Wait a moment and try again.');
+  else toast('That change did not save. Check your connection and try again.');
+  console.warn('[rat-race]', e);
+}
+async function write(col, id, body) {
+  if (!db) { toast('Not connected, so nothing can be saved.'); return false; }
+  try { await db.collection(col).doc(id).set(body); return true; } catch (e) { handleErr(e); return false; }
+}
+async function patch(col, id, body) {
+  try { await db.collection(col).doc(id).update(body); return true; } catch (e) { handleErr(e); return false; }
+}
+function stripId(r) { const o = { ...r }; delete o.id; return o; }
+const newId = col => db ? db.collection(col).doc().id : 'local' + Math.random().toString(36).slice(2);
+
+async function logEvent(title, kind, refs) {
+  if (!db) return;
+  try { await db.collection('events').add({ title, kind, date: localDate(), refs, auto: true, createdAt: new Date().toISOString() }); } catch (e) { handleErr(e); }
+}
+async function setStatus(id, s) {
+  const a = get('applications', id); if (!a || a.status === s) return;
+  const body = { status: s, statusAt: localDate(), updatedAt: new Date().toISOString() };
+  if (s !== 'wishlist' && !a.applied) body.applied = localDate();
+  if (await patch('applications', id, body)) {
+    const kind = s === 'rejected' ? 'Rejection' : s === 'offer' ? 'Offer' : 'Status change';
+    await logEvent('Moved to ' + STATUS_L[s], kind, ['applications/' + id]);
+    toast('Moved to ' + STATUS_L[s]);
+  }
+}
+async function deleteRecord(col, id) {
+  const key = col + '/' + id, rec = get(col, id);
+  for (const c of COLS) for (const r of [...state.data[c].values()]) {
+    if (c === col && r.id === id) continue;
+    if (c === 'events' && r.auto && (r.refs || []).length === 1 && r.refs[0] === key) {
+      try { await db.collection('events').doc(r.id).delete(); } catch (e) { handleErr(e); } continue;
+    }
+    const p = {};
+    for (const f of TYPES[c].fields) {
+      const v = r[f.k];
+      if (f.kind === 'ref' && f.to === col && v === id) p[f.k] = '';
+      if (f.kind === 'refs' && f.to === col && Array.isArray(v) && v.includes(id)) p[f.k] = v.filter(x => x !== id);
+      if (f.kind === 'anyrefs' && Array.isArray(v) && v.includes(key)) p[f.k] = v.filter(x => x !== key);
+    }
+    if (Object.keys(p).length) await patch(c, r.id, p);
+  }
+  try {
+    await db.collection(col).doc(id).delete();
+    if (rec && rec.fileId && assets) assets.delete(rec.fileId).catch(() => {});
+    closePanel(); toast('Deleted');
+  } catch (e) { handleErr(e); }
+}
+async function clearSample() {
+  const btn = $('#clearSample'); btn.disabled = true; btn.textContent = 'Clearing…';
+  for (const c of COLS) for (const r of all(c)) if (r.sample) { try { await db.collection(c).doc(r.id).delete(); } catch (e) { handleErr(e); break; } }
+  btn.disabled = false; btn.textContent = 'Clear sample data';
+  if (panel.mode) closePanel();
+  toast('Sample data cleared. The tracker is yours now.');
+}
+
+async function connect() {
+  let tries = 0;
+  while (!window.claude?.use && tries++ < 30) await new Promise(r => setTimeout(r, 100));
+  if (!window.claude?.use) { state.dbState = 'none'; render(); return; }
+  db = await window.claude.use('db');
+  if (!db) { state.dbState = 'none'; render(); return; }
+  state.dbState = 'ok';
+  COLS.forEach(c => db.collection(c).onSnapshot(snap => {
+    const m = new Map(); snap.docs.forEach(d => m.set(d.id, { ...d.data(), id: d.id }));
+    state.data[c] = m; state.loaded.add(c); scheduleRender();
+  }, e => { console.warn('[rat-race] subscribe', c, e); if (e.code === 'revoked') { state.dbState = 'none'; scheduleRender(); } }));
+  window.claude.use('assets').then(a => { assets = a; if (panel.mode) renderPanel(true); }).catch(() => {});
+}
+
+/* ---------- Render loop ---------- */
+let raf = 0;
+function scheduleRender() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); }
+function render() {
+  renderBanner(); renderStats(); renderChips(); renderEmpty();
+  $('#clearSample').hidden = !COLS.some(c => all(c).some(r => r.sample));
+  if (state.view === 'graph') updateGraph();
+  else if (state.view === 'pipeline') renderPipeline();
+  else renderTimeline();
+  renderPanel(false);
+}
+function renderBanner() {
+  const b = $('#banner');
+  if (state.dbState === 'none') { b.hidden = false; b.textContent = 'Your tracker data could not load. Open this page on claude.ai while signed in to see and save your job hunt.'; }
+  else b.hidden = true;
+}
+
+/* ---------- Stats ---------- */
+function renderStats() {
+  const apps = all('applications');
+  const sent = apps.filter(a => a.status !== 'wishlist');
+  const heard = sent.filter(a => ['screen', 'interviewing', 'offer', 'rejected'].includes(a.status) || interviewsFor(a.id).length);
+  const active = apps.filter(a => ['applied', 'screen', 'interviewing'].includes(a.status));
+  const now = Date.now();
+  const upcoming = all('interviews').filter(i => i.date && parseD(i.date) >= now && i.outcome !== 'Cancelled');
+  const offers = apps.filter(a => a.status === 'offer').length;
+  const el = $('#stats'); el.replaceChildren();
+  const stat = (n, l) => h('div', { class: 'stat' }, h('b', null, n), h('span', null, l));
+  el.append(stat(sent.length, 'Sent'), stat(active.length, 'Active'), stat(pct(heard.length, sent.length), 'Heard back'),
+    stat(upcoming.length, 'Upcoming interviews'), stat(offers, 'Offers'));
+  const counts = STATUSES.map(s => ({ ...s, n: apps.filter(a => (a.status || 'applied') === s.k).length })).filter(s => s.n);
+  const bar = h('div', { class: 'funnel-bar', role: 'img', 'aria-label': counts.map(s => `${s.l} ${s.n}`).join(', ') || 'No applications yet' },
+    counts.map(s => { const i = h('i', { title: `${s.l}: ${s.n}` }); i.style.width = (100 * s.n / apps.length) + '%'; i.style.background = statusColor(s.k); return i; }));
+  const legend = h('div', { class: 'funnel-legend' }, counts.length ? counts.map(s => { const d = h('span', { class: 'dot' }); d.style.background = statusColor(s.k); return h('em', null, d, `${s.l} ${s.n}`); }) : 'Applications will fill this bar by stage.');
+  el.append(h('div', { class: 'funnel' }, bar, legend));
+  // best-performing resume version
+  const res = all('documents').filter(d => d.kind === 'Resume').map(d => {
+    const used = apps.filter(a => a.resumeId === d.id && a.status !== 'wishlist');
+    return { d, used: used.length, hit: used.filter(reachedInterview).length };
+  }).filter(x => x.used >= 2).sort((a, b) => b.hit / b.used - a.hit / a.used || b.used - a.used);
+  if (res.length) el.append(h('div', { class: 'best' }, 'Best resume: ', h('strong', null, res[0].d.name), ` · ${res[0].hit} of ${res[0].used} reached interview`));
+}
+
+/* ---------- Graph ---------- */
+const svg = d3.select('#graph');
+const gRoot = svg.append('g'), gLinks = gRoot.append('g'), gNodes = gRoot.append('g');
+const collideR = d => d.r + 7 + (d.col === 'companies' ? Math.min(d.reach || 0, 4) * 5 : 0);
+let simNodes = [], simLinks = [], sig = '', sizeSig = '', didFit = false, linkSel = gLinks.selectAll('line'), nodeSel = gNodes.selectAll('g.node');
+const zoom = d3.zoom().scaleExtent([0.15, 4]).on('zoom', e => { gRoot.attr('transform', e.transform); svg.classed('zoomed', e.transform.k > 1.35); });
+svg.call(zoom).on('dblclick.zoom', null);
+function centerView() { const n = svg.node(); svg.call(zoom.transform, d3.zoomIdentity.translate(n.clientWidth / 2, n.clientHeight / 2)); }
+const LINKDIST = { 'roles-companyId': 55, 'people-companyId': 60, 'applications-roleId': 38, 'interviews-applicationId': 32, 'events-refs': 28 };
+const sim = d3.forceSimulation()
+  .force('link', d3.forceLink().id(d => d.key).distance(l => LINKDIST[l.kind] || 70).strength(l => l.kind.includes('resume') || l.kind.includes('letter') ? .15 : .7))
+  .force('charge', d3.forceManyBody().strength(d => d.col === 'companies' ? -520 : d.col === 'events' ? -40 : -170))
+  .force('collide', d3.forceCollide().radius(collideR))
+  .force('x', d3.forceX().strength(.045)).force('y', d3.forceY().strength(.06))
+  .alphaDecay(.035)
+  .on('tick', () => {
+    linkSel.attr('x1', l => l.source.x).attr('y1', l => l.source.y).attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+    nodeSel.attr('transform', n => `translate(${n.x},${n.y})`);
+  })
+  .on('end', () => { if (!didFit && simNodes.length) { didFit = true; zoomToFit(); } });
+
+function zoomToFit(dur = 600) {
+  if (!simNodes.length) return;
+  const el = svg.node(), W = el.clientWidth, H = el.clientHeight;
+  const xs = simNodes.map(n => n.x), ys = simNodes.map(n => n.y);
+  const x0 = Math.min(...xs) - 40, x1 = Math.max(...xs) + 40, y0 = Math.min(...ys) - 60, y1 = Math.max(...ys) + 40;
+  const k = Math.min(2, .92 * Math.min(W / (x1 - x0), H / (y1 - y0)));
+  const t = d3.zoomIdentity.translate(W / 2 - k * (x0 + x1) / 2, H / 2 - k * (y0 + y1) / 2 + 20).scale(k);
+  svg.transition().duration(dur).call(zoom.transform, t);
+}
+const drag = d3.drag()
+  .on('start', (e, d) => { if (!e.active) sim.alphaTarget(.25).restart(); d.fx = d.x; d.fy = d.y; })
+  .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+  .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; });
+
+function updateGraph() {
+  const nodes = [];
+  for (const c of COLS) {
+    if (!state.types.has(c)) continue;
+    for (const r of state.data[c].values()) {
+      if (c === 'applications' && !state.statuses.has(r.status || 'applied')) continue;
+      nodes.push({ key: c + '/' + r.id, col: c, rec: r, r: TYPES[c].r });
+    }
+  }
+  const inSet = new Set(nodes.map(n => n.key));
+  const links = allLinks().filter(l => inSet.has(l.source) && inSet.has(l.target)).map(l => ({ ...l, id: l.source + '>' + l.target + ':' + l.kind }));
+  const newSig = nodes.map(n => n.key).join('|') + '#' + links.map(l => l.id).join('|');
+  const old = new Map(simNodes.map(n => [n.key, n]));
+  const merged = nodes.map(n => { const o = old.get(n.key); if (o) { o.rec = n.rec; return o; } return n; });
+  for (const n of merged) {
+    if (n.col === 'companies') { n.reach = companyContacts(n.rec.id).size; n.r = TYPES.companies.r + Math.min(n.reach, 6) * 1.6; }
+    if (n.col === 'applications') n.referral = referralOf(n.rec);
+  }
+  const newSizeSig = merged.filter(n => n.col === 'companies').map(n => n.reach).join(',');
+  if (newSizeSig !== sizeSig) { sizeSig = newSizeSig; sim.force('collide').radius(collideR); if (newSig === sig) sim.alpha(.25).restart(); }
+  if (newSig !== sig) {
+    sig = newSig;
+    const byKey = new Map(merged.map(n => [n.key, n]));
+    for (const n of merged) if (n.x == null) {
+      const l = links.find(l => (l.source === n.key && byKey.get(l.target)?.x != null) || (l.target === n.key && byKey.get(l.source)?.x != null));
+      const nb = l && byKey.get(l.source === n.key ? l.target : l.source);
+      if (nb) { n.x = nb.x + (Math.random() - .5) * 40; n.y = nb.y + (Math.random() - .5) * 40; }
+    }
+    simNodes = merged; simLinks = links;
+    sim.nodes(simNodes); sim.force('link').links(simLinks);
+    sim.alpha(old.size ? .45 : 1).restart();
+  }
+  const isRefLink = l => l.kind === 'applications-personIds' && getKey(l.target.key || l.target)?.kind === 'Referral';
+  const isDead = l => [l.source, l.target].some(e => { const k = e.key || e; return k.startsWith('applications/') && CLOSED.includes(getKey(k)?.status); });
+  linkSel = gLinks.selectAll('line').data(simLinks, l => l.id).join('line')
+    .attr('class', l => 'link k-' + l.kind + (isRefLink(l) ? ' referral' : '') + (isDead(l) ? ' dead' : ''));
+  nodeSel = gNodes.selectAll('g.node').data(simNodes, n => n.key).join(enter => {
+    const g = enter.append('g').call(drag)
+      .on('click', (e, n) => { e.stopPropagation(); openRecord(n.key); })
+      .on('mouseenter', (e, n) => highlight(n))
+      .on('mouseleave', () => highlight(null));
+    g.append('g').attr('class', 'halo');
+    g.append('path').attr('class', 'shape');
+    g.append('path').attr('class', 'mark');
+    g.append('path').attr('class', 'badge-star');
+    g.append('text').attr('class', 'label');
+    g.append('text').attr('class', 'reach');
+    g.append('title');
+    return g;
+  });
+  const q = !!state.search.trim();
+  svg.classed('searching', q);
+  nodeSel
+    .attr('class', n => `node t-${n.col}${n.col === 'applications' ? ' s-' + (n.rec.status || 'applied') : ''}${n.reach >= 3 ? ' hot' : ''}${state.selected === n.key ? ' selected' : ''}${q && matches(n.col, n.rec) ? ' match' : ''}`)
+    .attr('tabindex', 0).attr('role', 'button').attr('aria-label', n => `${TYPES[n.col].label}: ${optLabel(n.col, n.rec)}`)
+    .on('keydown', (e, n) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRecord(n.key); } });
+  nodeSel.select('path.shape').attr('d', n => shapePath(n.col, n.r));
+  nodeSel.select('path.mark').attr('d', n => n.col === 'applications' ? markPath(n.rec.status, n.r) : '');
+  nodeSel.select('path.badge-star').attr('d', n => n.referral ? STAR : '').attr('transform', n => `translate(${n.r * .85},${-n.r * .85}) scale(1.3)`);
+  nodeSel.select('g.halo').selectAll('circle').data(n => {
+    if (n.col === 'companies') { const k = Math.min(n.reach || 0, 4); return d3.range(k).map(i => ({ r: n.r + 5 + i * 5, cls: `ring ring-reach i${i}${i === k - 1 ? ' last' : ''}` })); }
+    if (n.col !== 'applications') return [];
+    const rings = [];
+    if (n.referral) rings.push({ r: n.r + 3.5, cls: 'ring ring-ref' });
+    if (n.rec.status === 'offer') rings.push({ r: n.r + (n.referral ? 8 : 5), cls: 'ring ring-offer' });
+    return rings;
+  }).join('circle').attr('r', d => d.r).attr('class', d => d.cls);
+  const labelY = n => n.r + 13 + (n.col === 'companies' ? Math.min(n.reach || 0, 4) * 5 : n.referral ? 3 : 0);
+  nodeSel.select('text.label').attr('y', labelY).text(n => { const t = titleOf(n.col, n.rec); return t.length > 28 ? t.slice(0, 26) + '…' : t; });
+  nodeSel.select('text.reach').attr('y', n => labelY(n) + 12).text(n => n.col === 'companies' && n.reach ? `${n.reach} contact${n.reach === 1 ? '' : 's'}` : '');
+  nodeSel.select('title').text(n => {
+    let s = `${TYPES[n.col].label}: ${optLabel(n.col, n.rec)}${subOf(n.col, n.rec) ? '\n' + subOf(n.col, n.rec) : ''}`;
+    if (n.col === 'companies') s += `\n${n.reach || 0} contact${n.reach === 1 ? '' : 's'} reached`;
+    if (n.referral) s += '\nReferral' + (n.referral.name ? ' from ' + n.referral.name : '');
+    return s;
+  });
+}
+function highlight(n) {
+  svg.classed('hovering', !!n);
+  if (!n) { nodeSel.classed('hl', false); linkSel.classed('hl', false); return; }
+  const nb = new Set([n.key]);
+  linkSel.classed('hl', l => { const on = l.source.key === n.key || l.target.key === n.key; if (on) { nb.add(l.source.key); nb.add(l.target.key); } return on; });
+  nodeSel.classed('hl', d => nb.has(d.key));
+}
+svg.on('click', () => { if (panel.mode) closePanel(); });
+$('#fitBtn').onclick = () => zoomToFit();
+
+function renderChips() {
+  const tc = $('#typeChips'); tc.replaceChildren();
+  for (const c of COLS) {
+    const on = state.types.has(c);
+    tc.append(h('button', { class: 'chip', 'aria-pressed': String(on), title: (on ? 'Hide ' : 'Show ') + TYPES[c].plural.toLowerCase(),
+      onclick: () => { on ? state.types.delete(c) : state.types.add(c); scheduleRender(); } },
+      icon(c), TYPES[c].plural, h('span', { class: 'n' }, state.data[c].size)));
+  }
+  const sc = $('#statusChips'); sc.replaceChildren();
+  if (!state.types.has('applications') || !state.data.applications.size) return;
+  for (const s of STATUSES) {
+    const n = all('applications').filter(a => (a.status || 'applied') === s.k).length; if (!n) continue;
+    const on = state.statuses.has(s.k);
+    sc.append(h('button', { class: 'chip', 'aria-pressed': String(on), title: (on ? 'Hide ' : 'Show ') + s.l.toLowerCase() + ' applications',
+      onclick: () => { on ? state.statuses.delete(s.k) : state.statuses.add(s.k); scheduleRender(); } },
+      icon('applications', s.k), s.l, h('span', { class: 'n' }, n)));
+  }
+}
+function renderEmpty() {
+  const el = $('#empty'); const total = COLS.reduce((t, c) => t + state.data[c].size, 0);
+  const loading = state.dbState === 'connecting' || (state.dbState === 'ok' && state.loaded.size < COLS.length);
+  if (total && !loading) { el.hidden = true; return; }
+  if (state.view !== 'graph') { el.hidden = true; return; }
+  el.hidden = false; el.replaceChildren(h('div', { class: 'empty-card' },
+    loading ? [h('h2', null, 'Loading your job hunt…'), h('p', null, 'Companies, roles and applications will appear here as a connected map.')]
+      : [h('h2', null, 'Map your job hunt'), h('p', null, 'Start with a company you want to work for. Then add the role, your application, the resume you sent and the people you talk to. Each one links up on this map.'),
+        h('button', { class: 'btn primary', onclick: () => openNew('companies') }, 'Add your first company')]));
+}
+
+/* ---------- Pipeline ---------- */
+let dragId = null;
+function renderPipeline() {
+  const board = $('#board'); board.replaceChildren();
+  const apps = all('applications').filter(a => matches('applications', a));
+  for (const s of STATUSES) {
+    const list = apps.filter(a => (a.status || 'applied') === s.k).sort((a, b) => (b.statusAt || b.applied || '').localeCompare(a.statusAt || a.applied || ''));
+    const dot = h('span', { class: 'dot' }); dot.style.background = statusColor(s.k);
+    const col = h('div', { class: 'col' + (CLOSED.includes(s.k) ? ' closed' : '') },
+      h('div', { class: 'col-head' }, dot, s.l, h('span', { class: 'count' }, list.length)),
+      h('div', { class: 'cards' }, list.length ? list.map(card) : h('div', { class: 'col-empty' }, s.k === 'wishlist' ? 'Roles you plan to apply to' : 'Drop an application here')));
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    col.addEventListener('drop', e => { e.preventDefault(); col.classList.remove('over'); const id = e.dataTransfer.getData('text/plain') || dragId; if (id) setStatus(id, s.k); });
+    board.append(col);
+  }
+}
+function card(a) {
+  const co = companyOf('applications', a)?.name || 'No company';
+  const days = daysSince(a.statusAt || a.applied);
+  const next = interviewsFor(a.id).filter(i => i.date && parseD(i.date) >= Date.now()).sort((x, y) => x.date.localeCompare(y.date))[0];
+  const resume = get('documents', a.resumeId);
+  const stale = a.status === 'applied' && days != null && days >= 14;
+  const ref = referralOf(a);
+  const el = h('div', { class: 'card' + (ref ? ' ref-card' : '') + (['rejected', 'withdrawn'].includes(a.status) ? ' closed-card' : ''), draggable: 'true', tabindex: 0, role: 'button', 'aria-label': `${titleOf('applications', a)} at ${co}`,
+    onclick: () => openRecord('applications/' + a.id),
+    onkeydown: e => { if (e.key === 'Enter') openRecord('applications/' + a.id); } },
+    h('div', { class: 't' }, titleOf('applications', a)), h('div', { class: 'c' }, co),
+    h('div', { class: 'meta' },
+      ref ? h('span', { class: 'tag-ref' }, '★ Referral' + (ref.name ? ': ' + ref.name.replace(/ \(sample\)$/, '') : '')) : null,
+      days != null ? h('span', { class: stale ? 'warn' : '' }, a.status === 'rejected' ? `rejected after ${daysBetween(a.applied, a.statusAt) ?? '?'}d` : stale ? `${days}d, no reply` : `${days}d in stage`) : null,
+      next ? h('span', null, 'next: ' + fmtDate(next.date, false)) : null,
+      resume ? h('span', null, resume.name) : null));
+  el.addEventListener('dragstart', e => { dragId = a.id; e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); });
+  el.addEventListener('dragend', () => { dragId = null; el.classList.remove('dragging'); });
+  return el;
+}
+
+/* ---------- Timeline ---------- */
+function renderTimeline() {
+  const root = $('#timeline'); root.replaceChildren();
+  const items = [];
+  for (const a of all('applications')) if (a.applied && a.status !== 'wishlist') items.push({ col: 'applications', r: a, date: a.applied, what: 'Applied: ' + titleOf('applications', a), status: a.status });
+  for (const i of all('interviews')) if (i.date) items.push({ col: 'interviews', r: i, date: i.date, what: titleOf('interviews', i) + ' interview' });
+  for (const e of all('events')) if (e.date) items.push({ col: 'events', r: e, date: e.date, what: e.title || 'Event' });
+  const companies = all('companies').sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const sel = h('select', { id: 'tlCompany' }, h('option', { value: '' }, 'All companies'), companies.map(c => h('option', { value: c.id }, c.name)));
+  sel.value = state.tlCompany; sel.onchange = () => { state.tlCompany = sel.value; renderTimeline(); };
+  root.append(h('div', { class: 'tl-bar' }, h('label', { for: 'tlCompany' }, 'Company'), sel));
+  const filtered = items.filter(it => (!state.tlCompany || companyOf(it.col, it.r)?.id === state.tlCompany) && matches(it.col, it.r));
+  const row = it => {
+    const co = companyOf(it.col, it.r)?.name;
+    return h('button', { class: 'tl-item', onclick: () => openRecord(it.col + '/' + it.r.id) },
+      icon(it.col, it.status), h('time', { datetime: it.date }, fmtDate(it.date, false)),
+      h('div', { class: 'what' }, h('b', null, it.what), (co || it.r.kind) ? h('span', null, [co, it.col === 'events' ? it.r.kind : it.col === 'interviews' ? fmtDate(it.date) : STATUS_L[it.status]].filter(Boolean).join(' · ')) : null));
+  };
+  const now = Date.now(), todayStr = localDate();
+  const future = filtered.filter(it => it.date.length > 10 ? parseD(it.date) >= now : it.date > todayStr).sort((a, b) => a.date.localeCompare(b.date));
+  const past = filtered.filter(it => !future.includes(it)).sort((a, b) => b.date.localeCompare(a.date));
+  if (future.length) root.append(h('section', { class: 'upcoming' }, h('h3', null, 'Coming up', h('small', null, future.length)), h('div', { class: 'tl-list' }, future.map(row))));
+  if (!past.length && !future.length) { root.append(h('p', { class: 'tl-none' }, 'Nothing on the timeline yet. Applications with a date applied, interviews and events show up here, newest first.')); return; }
+  const groups = d3.groups(past, it => it.date.slice(0, 7));
+  for (const [ym, list] of groups) {
+    const label = new Date(ym + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    root.append(h('section', null, h('h3', null, label, h('small', null, list.length)), h('div', { class: 'tl-list' }, list.map(row))));
+  }
+}
+
+/* ---------- Panel ---------- */
+function openRecord(key) {
+  const [col, id] = key.split('/'); const rec = get(col, id); if (!rec) return;
+  panel = { mode: 'edit', col, id, dirty: false, draft: structuredClone(rec), confirmDel: false };
+  state.selected = key; renderPanel(true); scheduleRender();
+}
+function openNew(col, preset = {}) {
+  closeMenu();
+  panel = { mode: 'new', col, id: newId(col), dirty: true, draft: { ...(DEFAULTS[col]?.() || {}), ...preset }, confirmDel: false };
+  state.selected = null; renderPanel(true); scheduleRender();
+  setTimeout(() => $('#panel input, #panel select')?.focus(), 30);
+}
+function closePanel() { panel = { mode: null }; state.selected = null; $('#panel').hidden = true; scheduleRender(); }
+function markDirty() { panel.dirty = true; const b = $('#saveBtn'); if (b) b.disabled = false; }
+
+function fieldEl(col, f) {
+  const d = panel.draft, id = `f-${col}-${f.k}`;
+  let ctl;
+  const bind = (el, fn) => { el.addEventListener('input', () => { fn(); markDirty(); }); el.addEventListener('change', () => { fn(); markDirty(); }); };
+  switch (f.kind) {
+    case 'text': case 'url': case 'date': case 'datetime':
+      ctl = h('input', { id, type: { text: 'text', url: 'url', date: 'date', datetime: 'datetime-local' }[f.kind], placeholder: f.ph || '' });
+      ctl.value = d[f.k] || ''; bind(ctl, () => { d[f.k] = ctl.value; }); break;
+    case 'textarea':
+      ctl = h('textarea', { id, rows: 3 }); ctl.value = d[f.k] || ''; bind(ctl, () => { d[f.k] = ctl.value; }); break;
+    case 'select':
+      ctl = h('select', { id }, f.options.map(o => h('option', { value: o.v }, o.l))); ctl.value = d[f.k] || f.options[0].v;
+      if (!d[f.k]) d[f.k] = f.options[0].v;
+      bind(ctl, () => { d[f.k] = ctl.value; }); break;
+    case 'status':
+      if (panel.mode === 'edit') {
+        ctl = h('div', { class: 'pills', role: 'group', 'aria-label': 'Stage' }, STATUSES.map(s =>
+          h('button', { class: 'pill', type: 'button', 'aria-pressed': String((d.status || 'applied') === s.k), onclick: () => { d.status = s.k; setStatus(panel.id, s.k); } }, icon('applications', s.k), s.l)));
+      } else {
+        ctl = h('select', { id }, STATUSES.map(s => h('option', { value: s.k }, s.l))); ctl.value = d.status || 'applied';
+        bind(ctl, () => { d.status = ctl.value; });
+      }
+      break;
+    case 'ref': {
+      const list = all(f.to).filter(r => !f.filter || f.filter(r)).map(r => ({ id: r.id, l: optLabel(f.to, r) })).sort((a, b) => a.l.localeCompare(b.l));
+      ctl = h('select', { id }, h('option', { value: '' }, list.length ? '— None —' : `— No ${TYPES[f.to].plural.toLowerCase()} yet —`), list.map(o => h('option', { value: o.id }, o.l)));
+      ctl.value = d[f.k] && exists(f.to + '/' + d[f.k]) ? d[f.k] : '';
+      bind(ctl, () => { d[f.k] = ctl.value; }); break;
+    }
+    case 'refs': case 'anyrefs': {
+      const any = f.kind === 'anyrefs';
+      const toKey = v => any ? v : f.to + '/' + v;
+      ctl = h('div', { class: 'multi' });
+      const draw = () => {
+        const cur = (d[f.k] || []).filter(v => exists(toKey(v)));
+        const tags = h('div', { class: 'tags' }, cur.map(v => {
+          const [c] = toKey(v).split('/');
+          return h('span', { class: 'tag' }, icon(c), h('span', null, optLabel(c, getKey(toKey(v)))),
+            h('button', { type: 'button', 'aria-label': 'Remove', onclick: () => { d[f.k] = cur.filter(x => x !== v); markDirty(); draw(); } }, '×'));
+        }));
+        const add = h('select', { id }, h('option', { value: '' }, '+ Add…'));
+        const groupsFor = any ? COLS.filter(c => !(panel.col === c && false)) : [f.to];
+        for (const c of groupsFor) {
+          const opts2 = all(c).filter(r => !(c === panel.col && r.id === panel.id)).map(r => ({ v: any ? c + '/' + r.id : r.id, l: optLabel(c, r) }))
+            .filter(o => !cur.includes(o.v)).sort((a, b) => a.l.localeCompare(b.l));
+          if (!opts2.length) continue;
+          const opEls = opts2.map(o => h('option', { value: o.v }, o.l));
+          if (any) add.append(h('optgroup', { label: TYPES[c].plural }, opEls)); else add.append(...opEls);
+        }
+        add.onchange = () => { if (add.value) { d[f.k] = [...cur, add.value]; markDirty(); draw(); $('#' + CSS.escape(id))?.focus(); } };
+        ctl.replaceChildren(cur.length ? tags : null, add);
+      };
+      draw(); break;
+    }
+    case 'file': {
+      ctl = h('div', { class: 'file-box' });
+      const draw = () => {
+        const kids = [];
+        if (d.fileId) {
+          const src = '/_blob/' + d.fileId;
+          if ((d.fileType || '').startsWith('image/')) kids.push(h('img', { src, alt: d.fileName || 'Attached image' }));
+          kids.push(h('div', { class: 'file-row' }, h('a', { href: src, target: '_blank', rel: 'noopener' }, d.fileName || 'Open file'),
+            h('button', { class: 'btn small', type: 'button', onclick: () => { d.fileId = ''; d.fileName = ''; d.fileType = ''; markDirty(); draw(); } }, 'Remove')));
+        }
+        if (assets) {
+          const inp = h('input', { id, type: 'file', accept: '.pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md' });
+          inp.onchange = async () => {
+            const file = inp.files[0]; if (!file) return;
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            const typeMap = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', txt: 'text/plain', md: 'text/markdown' };
+            const type = typeMap[ext];
+            if (!type) { toast(ext === 'docx' || ext === 'doc' ? 'Word files can’t be stored here. Export it as a PDF and attach that.' : 'Attach a PDF, image, or text file.'); inp.value = ''; return; }
+            const note = h('div', { class: 'note' }, 'Uploading ' + file.name + '…'); ctl.append(note);
+            try { const res = await assets.upload(file, { type }); d.fileId = res.id; d.fileName = file.name; d.fileType = res.contentType; markDirty(); toast('File attached. Save to keep it.'); }
+            catch (e) { toast(e.code === 'too_large' ? 'That file is over 20 MB. Compress it and try again.' : 'Upload failed. Try again in a moment.'); }
+            draw();
+          };
+          kids.push(inp);
+        } else kids.push(h('div', { class: 'note' }, d.fileId ? '' : 'File uploads are available to people who can edit this page.'));
+        ctl.replaceChildren(...kids);
+      };
+      draw(); break;
+    }
+  }
+  return h('div', { class: 'field' + (f.half ? ' half' : '') }, h('label', { for: id }, f.label + (f.req ? ' *' : '')), ctl);
+}
+
+function renderPanel(force) {
+  const el = $('#panel');
+  if (!panel.mode) { el.hidden = true; return; }
+  const { col, id } = panel;
+  if (panel.mode === 'edit') {
+    const rec = get(col, id);
+    if (!rec) { if (state.loaded.has(col)) closePanel(); return; }
+    if (!force && panel.dirty) return;
+    if (!force) panel.draft = structuredClone(rec);
+  } else if (!force) return;
+  const scroll = el.querySelector('.p-body')?.scrollTop || 0;
+  const T = TYPES[col], d = panel.draft, isNew = panel.mode === 'new';
+  const body = h('div', { class: 'p-body' });
+  body.append(h('div', null, h('h2', { class: 'p-title' }, isNew ? 'New ' + T.label.toLowerCase() : optLabel(col, d)), !isNew && subOf(col, d) ? h('p', { class: 'p-sub' }, subOf(col, d)) : null));
+
+  if (!isNew && col === 'applications') {
+    const days = daysSince(d.statusAt || d.applied);
+    if (d.status === 'applied' && days >= 14) body.append(h('div', { class: 'nudge' }, `No reply in ${days} days. Send a follow-up, or move it to Ghosted.`));
+    const ref = referralOf(d);
+    if (ref) body.append(h('div', { class: 'perf tag-ref' }, '★ Referral' + (ref.name ? ' from ' + ref.name : ' (source)')));
+    if (d.status === 'rejected') {
+      const n = interviewsFor(id).length, after = daysBetween(d.applied, d.statusAt);
+      body.append(h('div', { class: 'perf' }, '✕ Rejected', d.statusAt ? ' on ' + fmtDate(d.statusAt) : '',
+        after != null ? `, ${after} days after applying` : '', n ? ` and ${n} interview${n === 1 ? '' : 's'}` : ', before any interview', '.'));
+    }
+  }
+  if (!isNew && col === 'companies') {
+    const ppl = [...companyContacts(id)].map(pid => get('people', pid));
+    body.append(h('div', { class: 'perf' }, h('b', null, ppl.length), ` contact${ppl.length === 1 ? '' : 's'} reached here`,
+      ppl.some(p => p.kind === 'Referral') ? ', including a referral' : '', ppl.length ? '' : '. Add a contact to light this company up on the map.'));
+  }
+  if (!isNew && col === 'documents' && d.kind === 'Resume') {
+    const used = all('applications').filter(a => a.resumeId === id && a.status !== 'wishlist');
+    body.append(h('div', { class: 'perf' }, 'Sent with ', h('b', null, used.length), ' application' + (used.length === 1 ? '' : 's'), ' · ', h('b', null, used.filter(reachedInterview).length), ' reached interview'));
+  }
+  if (!isNew && col === 'people' && d.email) {
+    body.append(h('div', { class: 'row' }, h('span', { class: 'note' }, d.email),
+      h('button', { class: 'btn small', type: 'button', onclick: () => navigator.clipboard.writeText(d.email).then(() => toast('Email copied'), () => toast('Copy failed. Select the address instead.')) }, 'Copy email')));
+  }
+
+  const form = h('form', { class: 'form', onsubmit: e => { e.preventDefault(); savePanel(); } }, T.fields.map(f => fieldEl(col, f)));
+  body.append(form);
+
+  if (!isNew) {
+    const key = col + '/' + id;
+    const out = refsOf(col, d).filter(x => exists(x.key)).map(x => ({ key: x.key, rel: x.f.label }));
+    const inc = allLinks().filter(l => l.target === key).map(l => ({ key: l.source, rel: TYPES[l.source.split('/')[0]].label + ' → ' + l.rel.toLowerCase() }));
+    const seen = new Set(); const links = [...out, ...inc].filter(x => !seen.has(x.key) && seen.add(x.key));
+    const quick = {
+      companies: [['roles', 'Role', { companyId: id }], ['people', 'Contact', { companyId: id }], ['events', 'Event', { refs: [key] }]],
+      roles: [['applications', 'Application', { roleId: id }], ['events', 'Event', { refs: [key] }]],
+      applications: [['interviews', 'Interview', { applicationId: id }], ['events', 'Event', { refs: [key] }]],
+      people: [['events', 'Event', { kind: 'Outreach sent', refs: [key] }]],
+      interviews: [['events', 'Event', { refs: [key] }]],
+      documents: [], events: [],
+    }[col];
+    if (quick.length) body.append(h('div', { class: 'row' }, quick.map(([c, l, p]) => h('button', { class: 'btn small', type: 'button', onclick: () => openNew(c, p) }, icon(c), ' + ' + l))));
+    body.append(h('div', { class: 'links' }, h('div', { class: 'sec-label' }, 'Connected to'),
+      links.length ? links.map(x => { const [c] = x.key.split('/'); const r = getKey(x.key);
+        return h('button', { class: 'link-chip', type: 'button', onclick: () => openRecord(x.key) }, icon(c, c === 'applications' ? r.status : null), h('span', { class: 'lt' }, optLabel(c, r)), h('span', { class: 'rel' }, x.rel)); })
+        : h('div', { class: 'note' }, 'Nothing linked yet. Use the fields above to connect it.')));
+  }
+
+  const foot = h('div', { class: 'p-foot' });
+  if (panel.confirmDel) {
+    const n = allLinks().filter(l => l.target === col + '/' + id).length;
+    foot.append(h('span', { class: 'note' }, n ? `Delete this? ${n} linked item${n === 1 ? '' : 's'} will lose the link.` : 'Delete this for good?'),
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'btn small', type: 'button', onclick: () => { panel.confirmDel = false; renderPanel(true); } }, 'Keep'),
+      h('button', { class: 'btn small danger solid', type: 'button', onclick: () => deleteRecord(col, id) }, 'Delete'));
+  } else {
+    foot.append(h('button', { id: 'saveBtn', class: 'btn primary', type: 'button', disabled: !panel.dirty, onclick: savePanel }, isNew ? 'Add ' + T.label.toLowerCase() : 'Save changes'));
+    if (!isNew && panel.dirty) foot.append(h('button', { class: 'btn', type: 'button', onclick: () => { panel.dirty = false; renderPanel(false); renderPanel(true); } }, 'Discard'));
+    foot.append(h('span', { class: 'spacer' }));
+    if (!isNew) foot.append(h('button', { class: 'btn small danger', type: 'button', onclick: () => { panel.confirmDel = true; renderPanel(true); } }, 'Delete'));
+  }
+
+  el.replaceChildren(
+    h('div', { class: 'p-head' }, h('span', { class: 'badge' }, icon(col, col === 'applications' ? d.status : null), T.label),
+      h('button', { class: 'x', type: 'button', 'aria-label': 'Close', onclick: closePanel }, '×')),
+    body, foot);
+  el.hidden = false;
+  body.scrollTop = scroll;
+}
+
+async function savePanel() {
+  if (readOnly) { toast('Changes are not allowed for your account.'); return; }
+  const { col, id, draft } = panel, T = TYPES[col];
+  for (const f of T.fields) if (f.req && !String(draft[f.k] || '').trim()) {
+    toast(`${f.label} is required.`); $(`#f-${col}-${f.k}`)?.focus(); return;
+  }
+  const prev = panel.mode === 'edit' ? get(col, id) : null;
+  const body = stripId(draft);
+  for (const k of Object.keys(body)) if (typeof body[k] === 'string') body[k] = body[k].trim();
+  body.updatedAt = new Date().toISOString();
+  if (!prev) body.createdAt = body.updatedAt;
+  if (col === 'applications' && (!prev || prev.status !== body.status)) body.statusAt = localDate();
+  const ok = await write(col, id, body); if (!ok) return;
+  if (col === 'applications' && !prev && body.status !== 'wishlist') await logEvent('Applied', 'Status change', ['applications/' + id]);
+  if (prev && prev.fileId && prev.fileId !== body.fileId && assets) assets.delete(prev.fileId).catch(() => {});
+  panel = { mode: 'edit', col, id, dirty: false, draft: structuredClone({ ...body, id }), confirmDel: false };
+  state.selected = col + '/' + id;
+  toast(prev ? 'Saved' : T.label + ' added');
+  renderPanel(true); scheduleRender();
+}
+
+/* ---------- Chrome ---------- */
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
+const addBtn = $('#addBtn'), addMenu = $('#addMenu');
+addMenu.append(...COLS.map(c => h('button', { type: 'button', onclick: () => openNew(c) }, icon(c, c === 'applications' ? 'applied' : null), TYPES[c].label)));
+function closeMenu() { addMenu.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); }
+addBtn.onclick = e => { e.stopPropagation(); addMenu.hidden = !addMenu.hidden; addBtn.setAttribute('aria-expanded', String(!addMenu.hidden)); if (!addMenu.hidden) addMenu.querySelector('button').focus(); };
+document.addEventListener('click', e => { if (!addMenu.contains(e.target)) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!addMenu.hidden) closeMenu(); else if (panel.mode && !panel.dirty) closePanel(); } });
+$('#clearSample').onclick = clearSample;
+let searchT; $('#search').addEventListener('input', e => { clearTimeout(searchT); searchT = setTimeout(() => { state.search = e.target.value; scheduleRender(); }, 120); });
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+function setView(v) {
+  state.view = v;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  for (const k of ['graph', 'pipeline', 'timeline']) $('#view-' + k).hidden = k !== v;
+  try { localStorage.setItem('rr-view', v); } catch (e) {}
+  scheduleRender();
+}
+try { const v = localStorage.getItem('rr-view'); if (['graph', 'pipeline', 'timeline'].includes(v)) setView(v); } catch (e) {}
+const KEYS = ['graph', 'pipeline', 'timeline'];
+if (KEYS.includes(location.hash.slice(1))) setView(location.hash.slice(1));
+
+centerView();
+new ResizeObserver(() => { if (!didFit) centerView(); }).observe(svg.node());
+render();
+connect();
+})();
+</script>
